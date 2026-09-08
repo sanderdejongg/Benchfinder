@@ -1,0 +1,7 @@
+.git
+.claude
+*.md
+mobile/
+.env
+.env.*
+!.env.example

@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-benchfinder}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-benchfinder}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-benchfinder} -d ${POSTGRES_DB:-benchfinder}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Scaffold — builds once a Go module exists at the repo root (go.mod, cmd/api/main.go).
+  # No code exists yet, so this will fail to build until then.
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-benchfinder}:${POSTGRES_PASSWORD:-devpassword}@postgres:5432/${POSTGRES_DB:-benchfinder}?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Manual trigger only (D7: `make ingest` / CLI at MVP, no scheduler yet).
+  # Run with: docker compose --profile tools run --rm ingest
+  ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ingest
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-benchfinder}:${POSTGRES_PASSWORD:-devpassword}@postgres:5432/${POSTGRES_DB:-benchfinder}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
