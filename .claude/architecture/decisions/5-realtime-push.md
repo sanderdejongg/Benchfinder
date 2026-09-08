@@ -36,6 +36,8 @@ Decisions leading to `../designs/5-realtime-push.md`.
 
 **Cost accepted:** a dedicated long-lived connection per API instance, held outside the query pool because it blocks. And the pooler constraint in D7.
 
+**Status:** Mechanism settled; original rationale corrected — see D9.
+
 ---
 
 ## D3 — WebSocket over SSE
@@ -101,6 +103,20 @@ Worth stating explicitly because it's easy to misread this design as "the cold-s
 If the WebSocket fails to establish, the options are to fall back to polling or to fall back to nothing and let the user pull to refresh.
 
 **Leaning toward pull-to-refresh:** it's simpler, it degrades honestly rather than burning battery on speculative requests, and for a utility app the user is already in a position to just look again. Polling as a fallback would reintroduce exactly the mechanism D1 rejected, only in the less reliable case.
+
+---
+
+## D9 — Correcting D2's stated rationale: multi-instance fan-out, not process separation
+
+**Decision:** No change to the mechanism — `LISTEN/NOTIFY` stands. The *reason* given in D2 was wrong and is corrected here.
+
+**What was wrong:** D2 justified `LISTEN/NOTIFY` by saying "the ingestion worker is a separate process from the API," attributing this to the deployment-shape design's batch job. But the batch job (Geofabrik-based bulk refresh) isn't the source of the events this design pushes on — those come from the ingestion-pipeline design's **cascade pre-warm** jobs, which run in-process inside the API via a goroutine worker pool (that design's §7), not as a separate process at all.
+
+**The actual constraint:** multi-instance fan-out. A cascade job dispatched by API instance A completes on instance A, but the client's WebSocket connection may be held by instance B — nothing pins a client to the instance that happened to do the work. An in-process Go channel can't cross that boundary; `LISTEN/NOTIFY` can, because Postgres fans the notification out to every listening instance regardless of which one produced it.
+
+**Why this still matters even though the conclusion doesn't change:** the wrong reason invites a wrong fix later — someone reading D2 literally could "resolve" the ingestion-pipeline/deployment-shape process question and then wrongly conclude `LISTEN/NOTIFY` is no longer needed. The real dependency is on having multiple API instances at all, not on where ingestion runs.
+
+**Status:** Settled. See ingestion-pipeline design §7 and deployment-shape decision D9 for the related (separate) Overpass/Geofabrik split — the two corrections are not the same issue, despite both stemming from conflating the deployment-shape batch job with the ingestion-pipeline's in-process worker pool.
 
 ---
 
