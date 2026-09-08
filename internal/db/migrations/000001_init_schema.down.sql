@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS polled_cells;
+DROP TABLE IF EXISTS benches;
