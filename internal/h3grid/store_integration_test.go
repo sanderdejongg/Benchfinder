@@ -26,7 +26,10 @@ func TestPostgresStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("db.New returned error: %v", err)
 	}
-	defer pool.Close()
+	// t.Cleanup, not defer: registered first so it runs last (LIFO), after
+	// the row-deletion cleanup below — a deferred Close here would run
+	// before that cleanup and leave it deleting against a closed pool.
+	t.Cleanup(pool.Close)
 
 	store := h3grid.NewPostgresStore(pool)
 
