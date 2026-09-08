@@ -71,6 +71,8 @@ Decisions leading to `../designs/4-deployment-shape.md`. This is the least settl
 
 The two are probably reconcilable — Overpass for demand-driven per-cell fills where a bounded bbox query is the only sensible tool, Geofabrik for any bulk refresh or backfill sweep — but that division of labour is currently implicit. It should be written into one design or the other, along with an answer to what the cold-start path does when Overpass is unavailable.
 
+**Status:** Reconciled by D9 (2026-09-08). Cold-start failure behaviour is now covered by the ingestion-pipeline design's D15/D16.
+
 ---
 
 ## D7 — Manual trigger at MVP, scheduled later
@@ -93,10 +95,39 @@ This is the same property the ingestion pipeline decisions independently identif
 
 ---
 
+## D9 — Reconciling the Geofabrik preference with the ingestion pipeline's Overpass usage
+
+**Decision:** Same split as ingestion-pipeline decision D12 — Geofabrik extracts are for this design's batch job (bulk/backfill only); Overpass is scoped to the ingestion-pipeline design's per-cell demand fills only. D6's preference for Geofabrik "as a production dependency" was correct but incomplete — it was implicitly about bulk coverage, not about ruling out any use of Overpass anywhere in the system.
+
+**Rationale:** See ingestion-pipeline decision D12 for the full reasoning; recorded here too since D6 raised the tension from this side.
+
+**Status:** Settled.
+
+---
+
+## D10 — Postgres provider: Neon (provisional)
+
+**Decision:** Neon.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Supabase | Default pgBouncer transaction-mode pooling breaks `LISTEN/NOTIFY` (realtime-push design), which D3 already flagged as the strongest filter on provider choice. |
+| DigitalOcean Managed | No decisive advantage over Neon at this project's scale; loses Neon's branching. |
+| Railway / Render Postgres | Only compelling if bundled with app hosting on the same platform, which isn't decided (see Open items in the design doc). |
+
+**Rationale:** Neon offers both a pooled and a direct (non-pooled) connection string, which is what the realtime-push design's long-lived `LISTEN` connection needs. Branching is a genuine secondary win — the ingestion pipeline's upserts and reconciliation logic are exactly the kind of destructive-ish change worth testing against a branch of real data before it hits main.
+
+**Trade-off accepted:** Neon's scale-to-zero behavior could add latency to the first request after idle — acceptable at MVP traffic levels, worth watching alongside the cold-start Overpass timeout budget (ingestion-pipeline D16) if it shows up in practice.
+
+**Status:** Provisional — confirm Neon's direct connection is usable for a long-lived `LISTEN` session in practice, not just documented as available, before treating this as final.
+
+---
+
 ## Unresolved at time of writing
 
-- **Specific Postgres provider** — likely determined by the `LISTEN/NOTIFY` constraint from the realtime-push design more than anything else.
 - **Specific API hosting platform.**
 - **When to graduate to scheduled ingestion.**
-- **The Geofabrik / Overpass split** (see D6) — the most substantive open item here, since it touches the ingestion pipeline's core architecture.
 - **CGo build implications** of `uber/h3-go` on whichever base image and platform is chosen.
+- **Neon direct-connection verification** — D10 is provisional until this is confirmed against the realtime-push design's `LISTEN` requirement.

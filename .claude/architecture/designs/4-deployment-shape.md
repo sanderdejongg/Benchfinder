@@ -1,6 +1,7 @@
 # Deployment Shape — Final Design
 
-**Status:** Shape settled, specific providers not yet chosen
+**Status:** Shape settled, Postgres provider chosen provisionally, API host still open
+**Updated:** 2026-09-08
 
 ---
 
@@ -30,6 +31,8 @@ GitHub Actions (scheduled) or manual CLI run
 
 Three moving pieces: a database, a stateless service, and a batch job. Nothing else.
 
+**Scoping note:** the batch job above is the Geofabrik-based bulk/backfill path only (see D9). The Go REST API box also runs two other ingestion-adjacent mechanisms defined in the ingestion-pipeline design — the synchronous per-cell Overpass cold-start fetch, and the in-process cascade pre-warm worker pool — neither of which is a separate process. This distinction is load-bearing for the realtime-push design's `LISTEN/NOTIFY` justification (see that design's decision D9).
+
 ---
 
 ## 3. Postgres / PostGIS hosting
@@ -45,7 +48,7 @@ Candidates under consideration:
 | **DigitalOcean Managed Databases** | Simple and predictable if the API is also on DO. |
 | **Railway / Render Postgres** | Fine if the app already lives on that platform; one vendor, one bill. |
 
-Not yet chosen.
+**Chosen, provisionally: Neon.** It offers a direct, non-pooled connection string alongside its pooled one — which the realtime-push design's long-lived `LISTEN` connection needs — plus branching, which is directly useful for testing the ingestion pipeline's destructive-ish upsert/reconciliation changes against real data. Supabase is ruled out: its default pgBouncer transaction-mode pooling breaks `LISTEN/NOTIFY` outright. **Provisional** pending explicit verification that Neon's direct connection is usable for a long-lived `LISTEN` session in practice, not just documented as available (see decision D10).
 
 ---
 
@@ -69,7 +72,7 @@ Stateless small API. No orchestration platform needed.
 
 A batch job, not a live service.
 
-**Data source preference:** Geofabrik static extracts over live Overpass queries where possible. Overpass is acceptable for finer-grained scripted queries but is not desirable as a hard production dependency.
+**Data source preference:** Geofabrik static extracts over live Overpass queries where possible. Overpass is acceptable for finer-grained scripted queries but is not desirable as a hard production dependency for this job. This is now explicitly scoped against the ingestion-pipeline design's own Overpass usage — see D9 there and D9 here: this batch job owns bulk/backfill via Geofabrik, the ingestion pipeline owns per-cell demand fills via Overpass, and neither substitutes for the other.
 
 **Trigger, staged:**
 
@@ -92,7 +95,6 @@ These land here even though they originate elsewhere:
 
 ## 7. Open items
 
-1. **Choose a specific managed Postgres provider.** Note the realtime-push design's `LISTEN/NOTIFY` constraint above — it likely narrows this more than any other factor.
-2. **Choose a specific API hosting platform.**
-3. **Decide when to graduate from manual to scheduled ingestion.**
-4. **Reconcile the Geofabrik preference with the ingestion pipeline design.** That design's entire model is demand-driven live Overpass queries per H3 cell, which is directly at odds with this design's stated preference for static extracts. The two probably serve different jobs — Overpass for per-cell demand fills, Geofabrik for bulk refresh — but that split is currently implied rather than written down anywhere.
+1. **Choose a specific API hosting platform.** Leaning Fly.io or Render (§4), not committed.
+2. **Decide when to graduate from manual to scheduled ingestion.**
+3. **Verify Neon's direct-connection support for `LISTEN/NOTIFY`** before treating the Postgres provider choice (D10) as final rather than provisional.

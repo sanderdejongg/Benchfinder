@@ -124,9 +124,77 @@ This is a deliberate instance of the project's "explicit deferral" pattern: name
 
 ---
 
+## D12 — Overpass and Geofabrik serve different jobs, stated explicitly
+
+**Decision:** This pipeline's Overpass usage is scoped to bounded, per-cell demand fills only. Any bulk backfill, country-wide seed, or scheduled refresh uses Geofabrik static extracts, run by the separate batch job in the deployment-shape design. Neither source substitutes for the other's job.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Drop Overpass, use only Geofabrik | Geofabrik extracts are static snapshots; they can't answer "what's near this exact point right now" without a bulk import first — the thing D1 rejected. |
+| Drop Geofabrik, use only Overpass | Leaves the deployment-shape design's objection to Overpass as a hard production dependency unaddressed for any future bulk refresh. |
+
+**Rationale:** The two designs each had half of a true answer and neither wrote down the other half. Overpass's bounded-bbox, per-request shape is exactly what this pipeline needs and exactly what the deployment-shape design's objection doesn't cover — that objection is about depending on Overpass for coverage at bulk scale, not about one small query per cold cell. Geofabrik remains correct for the job it was proposed for (bulk backfill), which this pipeline was never trying to do.
+
+**Status:** Settled. Also recorded in the deployment-shape decision log as D9.
+
+---
+
+## D13 — Cascade fan-out capped at depth 1
+
+**Decision:** A cell warmed via cascade pre-warm never itself triggers a further cascade. Only a cold-start cell (reached by a direct user query) originates one.
+
+**Rationale:** Without a cap, cascade pre-warming has no stated bound — a single query could in principle warm a ring whose warming warms further rings, with no stopping condition short of running out of unpolled cells. A depth-1 cap keeps the cost of any single user query bounded to at most one ring of neighbours, while still delivering the "walk outward into warm cells" benefit the design is going for.
+
+**Trade-off accepted:** A user who walks several cells outward from their original query may still hit an occasional cold cell beyond the pre-warmed ring, rather than a fully pre-warmed corridor. Preferred over the alternative, which trades a rare cold cell for an unbounded worst case.
+
+**Status:** Settled.
+
+---
+
+## D14 — Freshness window set to 30 days
+
+**Decision:** `polled_cells.polled_at` is considered fresh for 30 days.
+
+**Rationale:** OSM bench data changes slowly, so this is a conservative, tunable default rather than a derived number. Chosen for simplicity of reasoning about staleness during MVP; nothing else in the design depends on the specific value.
+
+**Status:** Settled — a default flagged for tuning against real usage, not a derived value.
+
+---
+
+## D15 — Cold-start failure returns empty, does not mark the cell polled
+
+**Decision:** If the synchronous Overpass fetch fails or times out during cold start, the request returns `200` with an empty `benches` array. The cell is **not** marked polled.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Return an error (5xx) | Breaks the "no-results is 200" contract already established in the nearby-search design for a case that's operationally identical from the client's point of view — a search that comes back with nothing. |
+| Mark the cell polled with a short TTL, retry later | Adds state (a "polled but low-confidence" flag) for a problem D16's timeout already bounds tightly; not worth the schema complexity at MVP. |
+
+**Rationale:** Treating an Overpass failure as "no results" keeps the client's error-handling surface small and consistent with the existing empty-result contract. Not marking the cell polled is the part that matters most: caching a failure as a fresh, empty cell would silently hide real benches from every subsequent query in that area until the freshness window (D14) expires.
+
+**Status:** Settled.
+
+---
+
+## D16 — Explicit 5s timeout on the Overpass HTTP call
+
+**Decision:** The Overpass fetch during cold start carries its own 5s client-side timeout, independent of the nearby-search design's 3s PostGIS query deadline.
+
+**Rationale:** The ms-scale Overpass latency assumption (D5) was written down as deliberately falsifiable, but nothing actually caught the falsification — a hung Overpass call had no stated bound. This closes that gap. It also means worst-case cold-start latency is the sum of both timeouts (~8s), not the 3s a reader of the nearby-search design alone might assume; that composed number wasn't previously stated anywhere.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
-- Freshness window duration for `polled_cells.polled_at`.
-- Reconciling this pipeline's Overpass-centric model with the deployment-shape design's stated preference for Geofabrik extracts.
-- Cascade depth cap — whether a cascade-warmed cell may itself cascade (it should not).
-- Cold-start failure behaviour when Overpass is unavailable.
+None outstanding — the four items below from the prior revision are resolved above.
+
+~~Freshness window duration for `polled_cells.polled_at`.~~ → D14
+~~Reconciling this pipeline's Overpass-centric model with the deployment-shape design's stated preference for Geofabrik extracts.~~ → D12
+~~Cascade depth cap — whether a cascade-warmed cell may itself cascade.~~ → D13
+~~Cold-start failure behaviour when Overpass is unavailable.~~ → D15, D16

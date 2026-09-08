@@ -2,6 +2,7 @@
 
 **Covers:** H3 grid & freshness tracking, cold-start synchronous ingestion, cascade pre-warming, dispatch mechanism
 **Status:** Design settled for MVP, not implemented
+**Updated:** 2026-09-08
 
 ---
 
@@ -17,6 +18,7 @@ The serving layer is always PostGIS. Overpass is an *ingestion-time* dependency 
 
 - **No bulk seed.** Ingest only areas someone has actually looked at, plus a small predictive halo around them.
 - **PostGIS is the single source of truth for reads.** Overpass is never on the read path for a warm cell.
+- **Overpass is scoped to per-cell demand fills only, never bulk.** Any bulk backfill or country-wide refresh uses Geofabrik static extracts via the separate batch job in the deployment-shape design. This pipeline never bulk-imports from Overpass, and the batch job never serves a live per-cell request — see decision D12.
 - **Idempotency is non-negotiable.** Every write is an upsert keyed on OSM identity, so re-polling a cell is always safe.
 - **Density varies ~20x across the target geography.** Any fixed spatial constant has to survive that spread.
 
@@ -109,13 +111,14 @@ Res 9 support is seeded into the schema now (the `resolution` column, the store-
 
 The first-ever request in an unpolled cell.
 
-- Overpass query dispatched **synchronously**, blocking the triggering HTTP request.
+- Overpass query dispatched **synchronously**, blocking the triggering HTTP request, with a **5s client-side timeout** on the Overpass HTTP call itself — separate from and in addition to the 3s PostGIS query deadline in the nearby-search design. Worst-case cold-start request latency is therefore ~8s, not 3s; that composed budget isn't stated anywhere else.
 - Results written via **chunked, transactional upsert**, deduped on `source` / `source_id` (OSM node/way ID).
-- Cell marked polled.
+- Cell marked polled — **only on a successful fetch.**
 - Search runs and results are returned **inline in the same request/response cycle**. The user who triggers a cold start does not see a "pending" state.
 - If Overpass returns nothing, retry with a smaller radius before concluding the area is genuinely empty.
+- **On Overpass failure or timeout:** return `200` with an empty `benches` array, consistent with the no-results contract in the nearby-search design. The cell is **not** marked polled, so the next request retries the fetch instead of caching a false negative as fresh.
 
-**Working assumption:** Overpass latency is low enough (ms-scale for a bounded bbox query) that blocking is acceptable UX. This assumption is written down deliberately so it can be falsified — if real-world latency turns out to be seconds, the design flips to the async + push path that the realtime-push design already provides.
+**Working assumption:** Overpass latency is low enough (ms-scale for a bounded bbox query) that blocking is acceptable UX. This assumption is written down deliberately so it can be falsified — if real-world latency turns out to be seconds, the design flips to the async + push path that the realtime-push design already provides. The 5s timeout above is the trip-wire that actually catches the falsification; previously nothing did.
 
 ---
 
@@ -123,9 +126,9 @@ The first-ever request in an unpolled cell.
 
 After any cell finishes ingesting, pre-warm its neighbours so the next request nearby hits a warm cache.
 
-- Compute `gridRing` / `gridDisk` neighbours at **k = 2 to 3** at res 8.
-- Roughly 900m–1400m outward, sized on the assumption that a person looking for a bench may well walk that far.
+- Compute `gridRing` / `gridDisk` neighbours at **k = 2 to 3** at res 8, sized on the assumption that a person looking for a bench may plausibly walk that far (roughly 900m–1400m outward).
 - Dispatched as **background jobs that never block the triggering request**.
+- **Fan-out is capped at depth 1: a cascade-warmed cell never itself triggers cascade.** Only a cell reached via a direct cold-start user query originates a cascade. Jobs dispatched by cascade pre-warm carry a flag the worker pool checks before deciding whether to re-dispatch — without this, a single query could in principle ripple outward with no bound.
 - This is the path that makes real-time push meaningful: a client whose viewport overlaps a neighbour cell still being pre-warmed is the one that gets a push when it commits.
 
 ---
@@ -174,8 +177,6 @@ Uniqueness constraint on `(source, source_id)` is what makes the upsert idempote
 
 ## 10. Open items
 
-1. **Freshness window value.** How old is `polled_at` allowed to be before a cell is re-polled? Not yet chosen. OSM bench data changes slowly, so this can plausibly be weeks or months, but the number is undecided.
-2. **Overpass vs. Geofabrik tension with the deployment-shape design.** This design is built entirely around live Overpass queries at ingestion time. The deployment-shape design states a preference for Geofabrik static extracts over Overpass as a production dependency. These two are not currently reconciled. The likely resolution is that they serve different jobs — Overpass for demand-driven per-cell fills, Geofabrik for any future bulk refresh — but this should be stated explicitly rather than left implicit.
-3. **Stale reference in the cascade pre-warming section.** Its ring sizing is justified by reference to "the existing 750m/1500m steps in the radius fallback ladder." That ladder was superseded in the nearby-search design by KNN + hard cutoff. The k=2..3 choice is still defensible on its own terms (walking distance), but the stated justification now points at something that no longer exists on the read path.
-4. **Cascade fan-out limits.** k=2..3 is chosen, but there's no stated cap on cascade depth — a cell pre-warmed by cascade should presumably *not* itself trigger a further cascade, or the whole country ingests from one query. This needs to be stated as an explicit rule.
-5. **Failure handling for cold start.** If Overpass is down or times out during a synchronous cold start, what does the user see? Empty results, an error, or stale-but-present data?
+**Freshness window:** 30 days (D14). **Overpass/Geofabrik split:** stated explicitly in §2 above (D12). **Cascade fan-out cap:** depth 1, stated in §6 above (D13). **Cold-start failure behaviour:** §5 above (D15, D16). All prior open items are resolved — see decision log D12–D16.
+
+None outstanding at time of writing.

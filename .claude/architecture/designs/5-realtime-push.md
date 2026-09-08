@@ -1,6 +1,7 @@
 # Real-Time Push on Ingestion Completion — Final Design
 
 **Status:** Architecture settled, four sub-questions open
+**Updated:** 2026-09-08
 
 ---
 
@@ -67,7 +68,7 @@ Chosen over Server-Sent Events. Functionally SSE would suffice — the channel i
 
 ### Cross-process signal: Postgres `LISTEN/NOTIFY`
 
-The ingestion worker is a separate process from the API (a consequence of the deployment-shape design's decision to run ingestion as a batch job). An in-process event bus therefore cannot carry the signal. `LISTEN/NOTIFY` uses the database already in the architecture rather than adding Redis or a broker.
+The constraint this solves is **multi-instance fan-out**: the ingestion-pipeline design's cascade pre-warm jobs run in-process, inside whichever API instance dispatched them (a goroutine worker pool — see that design's dispatch mechanism, §7), but the client's WebSocket connection may be held by a *different* API instance than the one that completes the job, since nothing pins a client to a specific instance across requests. A Go channel is confined to a single process and can't reach a connection registered on another instance. `LISTEN/NOTIFY` uses the database already in the architecture to fan the signal out to every listening instance, regardless of which one did the work.
 
 ### Connection lifecycle: transient
 
@@ -83,7 +84,7 @@ The push carries "cell X is ready," not bench data. The REST response stays the 
 
 ## 4. Dependencies
 
-- **Ingestion pipeline's cascade pre-warming** — the cascade pre-warm path is what generates the events worth pushing.
+- **Ingestion pipeline's cascade pre-warming** — the cascade pre-warm path is what generates the events worth pushing, and its in-process (not separate-process) dispatch is why this design needs cross-instance fan-out handling rather than cross-process signalling.
 - **Nearby-search design** — the `nearby` handler is where a "pending" state would be signalled and where the client learns to open a socket.
 - **Deployment-shape design** — the choice of Postgres provider constrains this design significantly (see below).
 

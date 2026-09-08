@@ -1,6 +1,7 @@
 # Anonymous Visitor Identity — Final Design
 
-**Status:** Design settled, two placement/mechanism questions open
+**Status:** Design settled, one placement question open
+**Updated:** 2026-09-08
 
 ---
 
@@ -55,7 +56,7 @@ The middleware **never rejects a request** on the basis of the visitor ID. Core 
 
 ### Storage
 
-`Visitor` table, upsert on request. Minimal columns at MVP:
+`Visitor` table, upsert on request — **synchronous, inline on the request path** (see decision D11). Minimal columns at MVP:
 
 ```
 visitor
@@ -113,9 +114,4 @@ Features this ID unlocks — favorites, contribution history — are separate to
 
 ## 7. Open questions
 
-1. **Synchronous vs. deferred upsert in middleware.** Should the `Visitor` upsert happen inline on the request path, or be pushed onto a background channel?
-   - *Synchronous:* simple, correct, but puts a write on the critical path of a read endpoint whose latency budget is already partly consumed by the ingestion pipeline's cold-start path.
-   - *Deferred:* keeps the read path clean, but introduces a queue, a dropped-write failure mode, and the question of what happens on shutdown.
-   - Note that the in-process worker pool from the ingestion pipeline's dispatch mechanism already exists as a possible home for this.
-
-2. **Placement of the ops retention work.** Whether it belongs here now, or should wait on the deployment-shape design — since the enforcement mechanism (cron job, scheduled machine, GitHub Actions workflow) depends entirely on which hosting platform is chosen, and that decision is still open.
+1. **Placement of the ops retention work.** Whether it belongs here now, or should wait on the deployment-shape design — since the enforcement mechanism (cron job, scheduled machine, GitHub Actions workflow) depends entirely on which hosting platform is chosen, and that decision is still open (deployment-shape design, open items).
