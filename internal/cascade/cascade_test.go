@@ -246,3 +246,39 @@ func TestDispatchDoesNotBlockOnJobExecution(t *testing.T) {
 		t.Fatal("no jobs were dispatched")
 	}
 }
+
+// A dispatched job stamps polled_at with the time it actually runs, not the
+// triggering request's now -- these jobs execute asynchronously, possibly
+// long after the trigger returned, so baking in the trigger's timestamp
+// would understate the neighbour's real freshness once ingested.
+func TestDispatchedJobStampsExecutionTimeNotTriggerTime(t *testing.T) {
+	ctx := context.Background()
+	cells := &fakeCellStore{}
+	source := &fakeSource{}
+	writer := &fakeWriter{}
+	dispatcher := &fakeDispatcher{}
+
+	p := newPrewarmer(cells, source, writer, dispatcher)
+	if err := p.EnsureCellFresh(ctx, lat, lng, now); err != nil {
+		t.Fatalf("EnsureCellFresh returned error: %v", err)
+	}
+	if len(dispatcher.jobs) == 0 {
+		t.Fatal("no jobs dispatched to exercise")
+	}
+
+	job := dispatcher.jobs[0]
+	if err := job.Run(ctx); err != nil {
+		t.Fatalf("dispatched job Run returned error: %v", err)
+	}
+
+	polledAt, found := cells.polledAt[job.Cell]
+	if !found {
+		t.Fatalf("cell %s was not marked polled after running its job", job.Cell)
+	}
+	if polledAt.Equal(now) {
+		t.Errorf("job stamped polled_at as the triggering call's now (%v) instead of its own execution time", now)
+	}
+	if d := time.Since(polledAt); d < 0 || d > 5*time.Second {
+		t.Errorf("polled_at %v is not close to actual execution time (time.Since = %v)", polledAt, d)
+	}
+}

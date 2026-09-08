@@ -129,7 +129,7 @@ func (p *Prewarmer) dispatchNeighbours(ctx context.Context, cell string, now tim
 		if p.isFresh(ctx, n, now) {
 			continue
 		}
-		p.dispatcher.Dispatch(p.jobFor(n, now))
+		p.dispatcher.Dispatch(p.jobFor(n))
 	}
 }
 
@@ -149,7 +149,16 @@ func (p *Prewarmer) isFresh(ctx context.Context, n string, now time.Time) bool {
 // jobFor builds the pre-warm Job for neighbour cell n. Run resolves n to a
 // point inside it and calls the plain coldstart ingest for that point --
 // never Prewarmer.EnsureCellFresh, per the depth-1 cap (D2).
-func (p *Prewarmer) jobFor(n string, now time.Time) Job {
+//
+// Deliberately does not close over the triggering call's now: these jobs
+// run later, asynchronously, via a background dispatcher -- potentially
+// well after the triggering request has returned (that's the point). Since
+// coldstart.Fetcher.EnsureCellFresh stamps polled_at with whatever now it's
+// given, baking in the origin's timestamp would understate how fresh the
+// neighbour actually is once ingested, causing it to go stale (and get
+// re-polled) earlier than it should. Run calls time.Now() itself, at
+// execution time, instead.
+func (p *Prewarmer) jobFor(n string) Job {
 	fetcher := p.fetcher
 	return Job{
 		Cell:          n,
@@ -159,7 +168,7 @@ func (p *Prewarmer) jobFor(n string, now time.Time) Job {
 			if err != nil {
 				return fmt.Errorf("cascade: cell center for %s: %w", n, err)
 			}
-			if err := fetcher.EnsureCellFresh(ctx, lat, lng, now); err != nil {
+			if err := fetcher.EnsureCellFresh(ctx, lat, lng, time.Now()); err != nil {
 				return fmt.Errorf("cascade: run job for %s: %w", n, err)
 			}
 			return nil
