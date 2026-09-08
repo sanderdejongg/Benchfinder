@@ -71,7 +71,7 @@ Decisions leading to `../designs/4-deployment-shape.md`. This is the least settl
 
 The two are probably reconcilable — Overpass for demand-driven per-cell fills where a bounded bbox query is the only sensible tool, Geofabrik for any bulk refresh or backfill sweep — but that division of labour is currently implicit. It should be written into one design or the other, along with an answer to what the cold-start path does when Overpass is unavailable.
 
-**Status:** Reconciled by D9 (2026-09-08). Cold-start failure behaviour is now covered by the ingestion-pipeline design's D15/D16.
+**Status:** Reconciled by D9 (2026-09-08). Cold-start failure behaviour is now covered by `1-2-cold-start-ingestion`'s D2/D3 (originally D15/D16 in the pipeline-wide log before it was split).
 
 ---
 
@@ -119,7 +119,7 @@ This is the same property the ingestion pipeline decisions independently identif
 
 **Rationale:** Neon offers both a pooled and a direct (non-pooled) connection string, which is what the realtime-push design's long-lived `LISTEN` connection needs. Branching is a genuine secondary win — the ingestion pipeline's upserts and reconciliation logic are exactly the kind of destructive-ish change worth testing against a branch of real data before it hits main.
 
-**Trade-off accepted:** Neon's scale-to-zero behavior could add latency to the first request after idle — acceptable at MVP traffic levels, worth watching alongside the cold-start Overpass timeout budget (ingestion-pipeline D16) if it shows up in practice.
+**Trade-off accepted:** Neon's scale-to-zero behavior could add latency to the first request after idle — acceptable at MVP traffic levels, worth watching alongside the cold-start Overpass timeout budget (`1-2-cold-start-ingestion` D3) if it shows up in practice.
 
 **Status:** Provisional — confirm Neon's direct connection is usable for a long-lived `LISTEN` session in practice, not just documented as available, before treating this as final.
 

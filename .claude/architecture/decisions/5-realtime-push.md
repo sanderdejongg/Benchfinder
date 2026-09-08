@@ -110,13 +110,13 @@ If the WebSocket fails to establish, the options are to fall back to polling or 
 
 **Decision:** No change to the mechanism — `LISTEN/NOTIFY` stands. The *reason* given in D2 was wrong and is corrected here.
 
-**What was wrong:** D2 justified `LISTEN/NOTIFY` by saying "the ingestion worker is a separate process from the API," attributing this to the deployment-shape design's batch job. But the batch job (Geofabrik-based bulk refresh) isn't the source of the events this design pushes on — those come from the ingestion-pipeline design's **cascade pre-warm** jobs, which run in-process inside the API via a goroutine worker pool (that design's §7), not as a separate process at all.
+**What was wrong:** D2 justified `LISTEN/NOTIFY` by saying "the ingestion worker is a separate process from the API," attributing this to the deployment-shape design's batch job. But the batch job (Geofabrik-based bulk refresh) isn't the source of the events this design pushes on — those come from `1-3-cascade-prewarm`'s jobs, which run in-process inside the API via a goroutine worker pool (`1-4-dispatch-mechanism`), not as a separate process at all.
 
 **The actual constraint:** multi-instance fan-out. A cascade job dispatched by API instance A completes on instance A, but the client's WebSocket connection may be held by instance B — nothing pins a client to the instance that happened to do the work. An in-process Go channel can't cross that boundary; `LISTEN/NOTIFY` can, because Postgres fans the notification out to every listening instance regardless of which one produced it.
 
 **Why this still matters even though the conclusion doesn't change:** the wrong reason invites a wrong fix later — someone reading D2 literally could "resolve" the ingestion-pipeline/deployment-shape process question and then wrongly conclude `LISTEN/NOTIFY` is no longer needed. The real dependency is on having multiple API instances at all, not on where ingestion runs.
 
-**Status:** Settled. See ingestion-pipeline design §7 and deployment-shape decision D9 for the related (separate) Overpass/Geofabrik split — the two corrections are not the same issue, despite both stemming from conflating the deployment-shape batch job with the ingestion-pipeline's in-process worker pool.
+**Status:** Settled. See `1-4-dispatch-mechanism` and deployment-shape decision D9 for the related (separate) Overpass/Geofabrik split — the two corrections are not the same issue, despite both stemming from conflating the deployment-shape batch job with the ingestion-pipeline's in-process worker pool.
 
 ---
 

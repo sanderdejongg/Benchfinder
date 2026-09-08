@@ -128,7 +128,7 @@ The rule is stated as an absolute rather than a guideline because it's the kind 
 |---|---|
 | Deferred upsert via a background channel | Adds a queue, a drop-on-shutdown failure mode, and coupling to the ingestion pipeline's worker pool — real cost for a write this cheap. |
 
-**Rationale:** A single upsert on an indexed primary key is negligible next to the request's other possible cost — a cold-start Overpass fetch can already run to several seconds (ingestion-pipeline D16). Synchronous also means the write never silently drops, which a queue-based approach would risk on process shutdown.
+**Rationale:** A single upsert on an indexed primary key is negligible next to the request's other possible cost — a cold-start Overpass fetch can already run to several seconds (`1-2-cold-start-ingestion` D3). Synchronous also means the write never silently drops, which a queue-based approach would risk on process shutdown.
 
 **Status:** Settled.
 

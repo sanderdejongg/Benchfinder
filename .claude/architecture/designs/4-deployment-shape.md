@@ -31,7 +31,7 @@ GitHub Actions (scheduled) or manual CLI run
 
 Three moving pieces: a database, a stateless service, and a batch job. Nothing else.
 
-**Scoping note:** the batch job above is the Geofabrik-based bulk/backfill path only (see D9). The Go REST API box also runs two other ingestion-adjacent mechanisms defined in the ingestion-pipeline design — the synchronous per-cell Overpass cold-start fetch, and the in-process cascade pre-warm worker pool — neither of which is a separate process. This distinction is load-bearing for the realtime-push design's `LISTEN/NOTIFY` justification (see that design's decision D9).
+**Scoping note:** the batch job above is the Geofabrik-based bulk/backfill path only (see D9). The Go REST API box also runs two other ingestion-adjacent mechanisms defined in `1-2-cold-start-ingestion` and `1-3-cascade-prewarm`/`1-4-dispatch-mechanism` — the synchronous per-cell Overpass cold-start fetch, and the in-process cascade pre-warm worker pool — neither of which is a separate process. This distinction is load-bearing for the realtime-push design's `LISTEN/NOTIFY` justification (see that design's decision D9).
 
 ---
 
@@ -64,7 +64,7 @@ Stateless small API. No orchestration platform needed.
 
 **Leaning:** Fly.io or Render — Go binary in a small Docker image, managed Postgres reached via a connection string in an environment variable.
 
-**Build note carried from the ingestion pipeline's H3 grid work:** `uber/h3-go` is CGo-based. That rules out the trivial `CGO_ENABLED=0` static binary and means the Docker build needs a C toolchain, with a multi-stage build to keep the final image small. Worth knowing before the base image is picked.
+**Build note carried from `1-1-h3-grid-freshness`:** `uber/h3-go` is CGo-based. That rules out the trivial `CGO_ENABLED=0` static binary and means the Docker build needs a C toolchain, with a multi-stage build to keep the final image small. Worth knowing before the base image is picked.
 
 ---
 

@@ -68,7 +68,7 @@ Chosen over Server-Sent Events. Functionally SSE would suffice — the channel i
 
 ### Cross-process signal: Postgres `LISTEN/NOTIFY`
 
-The constraint this solves is **multi-instance fan-out**: the ingestion-pipeline design's cascade pre-warm jobs run in-process, inside whichever API instance dispatched them (a goroutine worker pool — see that design's dispatch mechanism, §7), but the client's WebSocket connection may be held by a *different* API instance than the one that completes the job, since nothing pins a client to a specific instance across requests. A Go channel is confined to a single process and can't reach a connection registered on another instance. `LISTEN/NOTIFY` uses the database already in the architecture to fan the signal out to every listening instance, regardless of which one did the work.
+The constraint this solves is **multi-instance fan-out**: `1-3-cascade-prewarm`'s jobs run in-process, inside whichever API instance dispatched them (a goroutine worker pool — see `1-4-dispatch-mechanism`), but the client's WebSocket connection may be held by a *different* API instance than the one that completes the job, since nothing pins a client to a specific instance across requests. A Go channel is confined to a single process and can't reach a connection registered on another instance. `LISTEN/NOTIFY` uses the database already in the architecture to fan the signal out to every listening instance, regardless of which one did the work.
 
 ### Connection lifecycle: transient
 
@@ -84,7 +84,7 @@ The push carries "cell X is ready," not bench data. The REST response stays the 
 
 ## 4. Dependencies
 
-- **Ingestion pipeline's cascade pre-warming** — the cascade pre-warm path is what generates the events worth pushing, and its in-process (not separate-process) dispatch is why this design needs cross-instance fan-out handling rather than cross-process signalling.
+- **`1-3-cascade-prewarm`** — the cascade pre-warm path is what generates the events worth pushing, and its in-process (not separate-process) dispatch via `1-4-dispatch-mechanism` is why this design needs cross-instance fan-out handling rather than cross-process signalling.
 - **Nearby-search design** — the `nearby` handler is where a "pending" state would be signalled and where the client learns to open a socket.
 - **Deployment-shape design** — the choice of Postgres provider constrains this design significantly (see below).
 

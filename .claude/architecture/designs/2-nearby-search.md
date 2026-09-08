@@ -108,7 +108,7 @@ The repository is interface-based so the service layer is testable without a dat
 
 ## 8. Interaction with the ingestion pipeline
 
-This endpoint is the trigger point for the ingestion pipeline. Before the KNN query runs, the handler path performs the H3 freshness check. A cold cell means a synchronous Overpass fetch completes first, so the KNN query always runs against a populated cell. Cascade pre-warming fires after the response is sent.
+This endpoint is the trigger point for the ingestion pipeline (`1-ingestion-pipeline`). Before the KNN query runs, the handler path performs the H3 freshness check (`1-1-h3-grid-freshness`). A cold cell means a synchronous Overpass fetch completes first (`1-2-cold-start-ingestion`), so the KNN query always runs against a populated cell. Cascade pre-warming (`1-3-cascade-prewarm`) fires after the response is sent.
 
 ---
 
