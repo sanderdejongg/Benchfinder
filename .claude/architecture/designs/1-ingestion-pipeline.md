@@ -1,7 +1,6 @@
-# BEN-1 — Demand-Driven Ingestion Pipeline: Final Design
+# Demand-Driven Ingestion Pipeline — Final Design
 
-**Epic:** [BEN-1](https://benchfinder.youtrack.cloud/issue/BEN-1)
-**Children covered here:** BEN-8 (H3 grid & freshness), BEN-9 (cold-start synchronous ingestion), BEN-10 (cascade pre-warming), BEN-11 (dispatch mechanism)
+**Covers:** H3 grid & freshness tracking, cold-start synchronous ingestion, cascade pre-warming, dispatch mechanism
 **Status:** Design settled for MVP, not implemented
 
 ---
@@ -31,7 +30,7 @@ The serving layer is always PostGIS. Overpass is an *ingestion-time* dependency 
 | Parks | ~20 |
 | Remote nature | ~5 |
 
-This table is the empirical basis for the grid resolution choice, the cascade ring size, and (in BEN-2) the decision to use KNN rather than a fixed radius.
+This table is the empirical basis for the grid resolution choice, the cascade ring size, and (in the nearby-search design) the decision to use KNN rather than a fixed radius.
 
 ---
 
@@ -50,7 +49,7 @@ Client GET /benches/nearby (lat, lon)
    │                          │
  FRESH                      STALE / UNPOLLED
    │                          │
-   │                    Synchronous Overpass fetch (BEN-9)
+   │                    Synchronous Overpass fetch
    │                          │
    │                    Chunked transactional upsert
    │                          │
@@ -58,21 +57,21 @@ Client GET /benches/nearby (lat, lon)
    │                          │
    └────────────┬─────────────┘
                 ▼
-        PostGIS KNN query (BEN-2)
+        PostGIS KNN query
                 ▼
         Response returned to client
                 │
                 ▼ (after response, non-blocking)
-        Cascade pre-warm k=2..3 ring (BEN-10)
+        Cascade pre-warm k=2..3 ring
                 ▼
-        In-process worker pool (BEN-11)
+        In-process worker pool
                 ▼
-        NOTIFY bench_cell_updated (BEN-5)
+        NOTIFY bench_cell_updated
 ```
 
 ---
 
-## 4. Spatial grid and freshness tracking (BEN-8)
+## 4. Spatial grid and freshness tracking
 
 ### Grid model
 
@@ -102,11 +101,11 @@ Res 9 support is seeded into the schema now (the `resolution` column, the store-
 
 ### Tooling
 
-`uber/h3-go`. This is CGo-based, which has knock-on effects for the build and deploy story in BEN-4 (no trivially static cross-compiled binary; the Docker image needs a toolchain at build time).
+`uber/h3-go`. This is CGo-based, which has knock-on effects for the build and deploy story in the deployment-shape design (no trivially static cross-compiled binary; the Docker image needs a toolchain at build time).
 
 ---
 
-## 5. Cold-start ingestion (BEN-9)
+## 5. Cold-start ingestion
 
 The first-ever request in an unpolled cell.
 
@@ -116,22 +115,22 @@ The first-ever request in an unpolled cell.
 - Search runs and results are returned **inline in the same request/response cycle**. The user who triggers a cold start does not see a "pending" state.
 - If Overpass returns nothing, retry with a smaller radius before concluding the area is genuinely empty.
 
-**Working assumption:** Overpass latency is low enough (ms-scale for a bounded bbox query) that blocking is acceptable UX. This assumption is written down deliberately so it can be falsified — if real-world latency turns out to be seconds, the design flips to the async + push path that BEN-5 already provides.
+**Working assumption:** Overpass latency is low enough (ms-scale for a bounded bbox query) that blocking is acceptable UX. This assumption is written down deliberately so it can be falsified — if real-world latency turns out to be seconds, the design flips to the async + push path that the realtime-push design already provides.
 
 ---
 
-## 6. Cascade pre-warming (BEN-10)
+## 6. Cascade pre-warming
 
 After any cell finishes ingesting, pre-warm its neighbours so the next request nearby hits a warm cache.
 
 - Compute `gridRing` / `gridDisk` neighbours at **k = 2 to 3** at res 8.
 - Roughly 900m–1400m outward, sized on the assumption that a person looking for a bench may well walk that far.
 - Dispatched as **background jobs that never block the triggering request**.
-- This is the path that makes BEN-5 (real-time push) meaningful: a client whose viewport overlaps a neighbour cell still being pre-warmed is the one that gets a push when it commits.
+- This is the path that makes real-time push meaningful: a client whose viewport overlaps a neighbour cell still being pre-warmed is the one that gets a push when it commits.
 
 ---
 
-## 7. Dispatch mechanism (BEN-11)
+## 7. Dispatch mechanism
 
 **MVP: in-process async.** A goroutine-based worker pool with a bounded queue inside the API process.
 
@@ -168,7 +167,7 @@ Uniqueness constraint on `(source, source_id)` is what makes the upsert idempote
 
 - **H3 resolution graduation algorithm** (res 8 → res 9 for dense areas). Schema is ready; the logic is post-MVP.
 - **Real message queue** for background dispatch.
-- **Scheduled/automated re-polling.** Freshness is currently only re-evaluated when a user happens to query a stale cell. A background refresh sweep is post-MVP (see BEN-4).
+- **Scheduled/automated re-polling.** Freshness is currently only re-evaluated when a user happens to query a stale cell. A background refresh sweep is post-MVP (see the deployment-shape design).
 - **OpenBenches as an enrichment source.** Rejected as a primary source; may return later as a supplementary layer.
 
 ---
@@ -176,7 +175,7 @@ Uniqueness constraint on `(source, source_id)` is what makes the upsert idempote
 ## 10. Open items
 
 1. **Freshness window value.** How old is `polled_at` allowed to be before a cell is re-polled? Not yet chosen. OSM bench data changes slowly, so this can plausibly be weeks or months, but the number is undecided.
-2. **Overpass vs. Geofabrik tension with BEN-4.** BEN-1 is built entirely around live Overpass queries at ingestion time. BEN-4 states a preference for Geofabrik static extracts over Overpass as a production dependency. These two are not currently reconciled. The likely resolution is that they serve different jobs — Overpass for demand-driven per-cell fills, Geofabrik for any future bulk refresh — but this should be stated explicitly rather than left implicit.
-3. **Stale reference in BEN-10.** BEN-10's ring sizing is justified by reference to "the existing 750m/1500m steps in the radius fallback ladder." That ladder was superseded in BEN-2 by KNN + hard cutoff. The k=2..3 choice is still defensible on its own terms (walking distance), but the stated justification now points at something that no longer exists on the read path.
+2. **Overpass vs. Geofabrik tension with the deployment-shape design.** This design is built entirely around live Overpass queries at ingestion time. The deployment-shape design states a preference for Geofabrik static extracts over Overpass as a production dependency. These two are not currently reconciled. The likely resolution is that they serve different jobs — Overpass for demand-driven per-cell fills, Geofabrik for any future bulk refresh — but this should be stated explicitly rather than left implicit.
+3. **Stale reference in the cascade pre-warming section.** Its ring sizing is justified by reference to "the existing 750m/1500m steps in the radius fallback ladder." That ladder was superseded in the nearby-search design by KNN + hard cutoff. The k=2..3 choice is still defensible on its own terms (walking distance), but the stated justification now points at something that no longer exists on the read path.
 4. **Cascade fan-out limits.** k=2..3 is chosen, but there's no stated cap on cascade depth — a cell pre-warmed by cascade should presumably *not* itself trigger a further cascade, or the whole country ingests from one query. This needs to be stated as an explicit rule.
 5. **Failure handling for cold start.** If Overpass is down or times out during a synchronous cold start, what does the user see? Empty results, an error, or stale-but-present data?

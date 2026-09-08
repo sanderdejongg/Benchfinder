@@ -1,6 +1,5 @@
-# BEN-3 — Anonymous Visitor Identity: Final Design
+# Anonymous Visitor Identity — Final Design
 
-**Epic:** [BEN-3](https://benchfinder.youtrack.cloud/issue/BEN-3)
 **Status:** Design settled, two placement/mechanism questions open
 
 ---
@@ -96,7 +95,7 @@ Request logs that do contain the visitor ID fall under the same 12-month retenti
 
 ---
 
-## 5. Planned sub-issues
+## 5. Planned sub-tasks
 
 - **Client:** generate + persist UUIDv4 via `flutter_secure_storage`
 - **Client:** attach `X-Visitor-Id` header to all API requests
@@ -108,15 +107,15 @@ Request logs that do contain the visitor ID fall under the same 12-month retenti
 
 ## 6. Deferred
 
-Features this ID unlocks — favorites, contribution history — are separate epics to be scoped when they're actually wanted. The point of BEN-3 is that when that day comes, the identity layer already exists and already has a defensible privacy posture, rather than being bolted on under feature pressure.
+Features this ID unlocks — favorites, contribution history — are separate topics to be scoped when they're actually wanted. The point of this design is that when that day comes, the identity layer already exists and already has a defensible privacy posture, rather than being bolted on under feature pressure.
 
 ---
 
 ## 7. Open questions
 
 1. **Synchronous vs. deferred upsert in middleware.** Should the `Visitor` upsert happen inline on the request path, or be pushed onto a background channel?
-   - *Synchronous:* simple, correct, but puts a write on the critical path of a read endpoint whose latency budget is already partly consumed by BEN-1's cold-start path.
+   - *Synchronous:* simple, correct, but puts a write on the critical path of a read endpoint whose latency budget is already partly consumed by the ingestion pipeline's cold-start path.
    - *Deferred:* keeps the read path clean, but introduces a queue, a dropped-write failure mode, and the question of what happens on shutdown.
-   - Note that the in-process worker pool from BEN-11 already exists as a possible home for this.
+   - Note that the in-process worker pool from the ingestion pipeline's dispatch mechanism already exists as a possible home for this.
 
-2. **Placement of the ops retention sub-issue.** Whether it belongs under BEN-3 now, or should wait on BEN-4 — since the enforcement mechanism (cron job, scheduled machine, GitHub Actions workflow) depends entirely on which hosting platform is chosen, and that decision is still open.
+2. **Placement of the ops retention work.** Whether it belongs here now, or should wait on the deployment-shape design — since the enforcement mechanism (cron job, scheduled machine, GitHub Actions workflow) depends entirely on which hosting platform is chosen, and that decision is still open.

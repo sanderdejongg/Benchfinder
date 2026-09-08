@@ -1,6 +1,5 @@
-# BEN-2 — `GET /benches/nearby`: Final Design
+# `GET /benches/nearby` — Final Design
 
-**Epic:** [BEN-2](https://benchfinder.youtrack.cloud/issue/BEN-2)
 **Status:** Design settled for MVP, two conventions still open
 
 ---
@@ -61,7 +60,7 @@ GET /benches/nearby?lat=<float>&lon=<float>
 - `lon` ∈ [-180, 180]
 - Missing or non-numeric → 400
 
-**Headers:** `X-Visitor-Id` per BEN-3. Optional — a missing or malformed value never causes rejection.
+**Headers:** `X-Visitor-Id` per the visitor-identity design. Optional — a missing or malformed value never causes rejection.
 
 ---
 
@@ -103,13 +102,13 @@ PostGIS
 
 The repository is interface-based so the service layer is testable without a database. The handler holds no query knowledge; the repository holds no HTTP knowledge.
 
-**Router:** `chi` — a thin, idiomatic layer over `net/http` that composes cleanly with the visitor-ID middleware from BEN-3/BEN-6, without dragging in a framework's own conventions.
+**Router:** `chi` — a thin, idiomatic layer over `net/http` that composes cleanly with the visitor-ID middleware from the visitor-identity and architecture-setup designs, without dragging in a framework's own conventions.
 
 ---
 
 ## 8. Interaction with the ingestion pipeline
 
-This endpoint is the trigger point for BEN-1. Before the KNN query runs, the handler path performs the H3 freshness check (BEN-8). A cold cell means a synchronous Overpass fetch (BEN-9) completes first, so the KNN query always runs against a populated cell. Cascade pre-warming (BEN-10) fires after the response is sent.
+This endpoint is the trigger point for the ingestion pipeline. Before the KNN query runs, the handler path performs the H3 freshness check. A cold cell means a synchronous Overpass fetch completes first, so the KNN query always runs against a populated cell. Cascade pre-warming fires after the response is sent.
 
 ---
 
@@ -123,7 +122,7 @@ Without it, when rows are tied on exact distance at the `LIMIT` boundary, it isn
 
 ## 10. Superseded from original scope
 
-These were part of the epic before KNN was adopted, and are recorded so the reasoning isn't lost:
+These were part of the original scope before KNN was adopted, and are recorded so the reasoning isn't lost:
 
 - **Adaptive radius ladder** (300m → 750m → 1500m → 2000m, expanding until enough results). Replaced by KNN + fixed cutoff.
 - **Minimum-results-before-stopping threshold.** No longer meaningful — KNN always returns up to `LIMIT` if the rows exist within the cutoff.

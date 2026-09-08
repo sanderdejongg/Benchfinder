@@ -1,20 +1,20 @@
-# BEN-6 — Project Architecture Setup: Decision Log
+# Project Architecture Setup — Decision Log
 
-Decisions leading to the design in `BEN-6-architecture-setup-design.md`.
+Decisions leading to `../designs/6-architecture-setup.md`.
 
 ---
 
-## D1 — Tooling gets its own epic, separate from feature work
+## D1 — Tooling gets its own design, separate from feature work
 
-**Decision:** Keep linting, formatting, testing conventions, and CI in a dedicated epic rather than folding them into whichever feature epic happens to need them first.
+**Decision:** Keep linting, formatting, testing conventions, and CI in a dedicated design rather than folding them into whichever feature design happens to need them first.
 
-**Rationale:** These decisions are cross-cutting and long-lived. Burying "we use golangci-lint" inside the nearby-search epic makes it undiscoverable later and implies it's scoped to that feature. A separate epic also gives tooling additions a natural home as they come up, rather than forcing each one into an awkward parent.
+**Rationale:** These decisions are cross-cutting and long-lived. Burying "we use golangci-lint" inside the nearby-search design makes it undiscoverable later and implies it's scoped to that feature. A separate design also gives tooling additions a natural home as they come up, rather than forcing each one into an awkward parent.
 
 ---
 
 ## D2 — Prefer strict tooling over minimal defaults
 
-**Decision:** Across both languages, choose the stricter ruleset. Stated as the governing principle for this epic.
+**Decision:** Across both languages, choose the stricter ruleset. Stated as the governing principle for this design.
 
 **Rationale:** Default lint configurations are tuned to avoid annoying working teams shipping production software — they're deliberately quiet. That's precisely wrong for a project whose stated purpose is learning two unfamiliar languages. Every rule that fires is a language idiom being pointed out, with a rationale attached, at the moment it's relevant.
 
@@ -102,26 +102,16 @@ Hand-rolling a ruleset was rejected as requiring exactly the Dart knowledge that
 
 ---
 
-## D12 — CI wiring deferred to BEN-4
+## D12 — CI wiring deferred to the deployment-shape design
 
-**Decision:** Establish the tools now; wire them into CI once a pipeline exists under BEN-4.
+**Decision:** Establish the tools now; wire them into CI once a pipeline exists under the deployment-shape design.
 
-**Rationale:** The tools are useful locally from day one and don't depend on CI to provide value. CI configuration, by contrast, depends on the hosting-platform decisions that are still open in BEN-4. Sequencing them this way means no rework when that lands. GitHub Actions is the likely target, since BEN-4 already contemplates scheduled Actions workflows for ingestion.
-
----
-
-## D13 — BEN-7 consolidated into BEN-6 and deleted
-
-**Decision:** BEN-7 was created as a duplicate subtask covering the same tooling ground. Its content was merged into BEN-6 and the issue deleted.
-
-**Rationale:** Two issues describing the same tooling setup would guarantee they drift apart. Worth recording because it explains the ID gap in the project's issue sequence.
-
-**Process note:** the YouTrack MCP integration exposes no delete operation, so the workaround was to consolidate content into the surviving issue and delete manually through the web UI. Confirmed done — BEN-7 no longer appears in the project.
+**Rationale:** The tools are useful locally from day one and don't depend on CI to provide value. CI configuration, by contrast, depends on the hosting-platform decisions that are still open in the deployment-shape design. Sequencing them this way means no rework when that lands. GitHub Actions is the likely target, since that design already contemplates scheduled Actions workflows for ingestion.
 
 ---
 
 ## Unresolved at time of writing
 
-- **CI platform** — blocked on BEN-4, though GitHub Actions is the obvious default.
-- **Testing conventions** — in scope for this epic but not yet specified. The only concrete signal so far is BEN-2's interface-based repository boundary, which exists to make the service layer unit-testable without a database.
+- **CI platform** — blocked on the deployment-shape design, though GitHub Actions is the obvious default.
+- **Testing conventions** — in scope for this design but not yet specified. The only concrete signal so far is the nearby-search design's interface-based repository boundary, which exists to make the service layer unit-testable without a database.
 - **Ratchet trigger** — "start permissive" is decided, but nothing states when or whether the ruleset tightens.

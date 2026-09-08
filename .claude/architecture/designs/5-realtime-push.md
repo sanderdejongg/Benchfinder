@@ -1,17 +1,16 @@
-# BEN-5 — Real-Time Push on Ingestion Completion: Final Design
+# Real-Time Push on Ingestion Completion — Final Design
 
-**Epic:** [BEN-5](https://benchfinder.youtrack.cloud/issue/BEN-5)
-**Status:** Architecture settled, four sub-issues open
+**Status:** Architecture settled, four sub-questions open
 
 ---
 
 ## 1. Purpose
 
-Under BEN-1's demand-driven model, a `/benches/nearby` request can trigger background ingestion for cells the user didn't directly query — specifically the k=2..3 cascade pre-warm ring (BEN-10). Without a push channel, the client has no way to learn that this data has arrived short of polling.
+Under the ingestion pipeline's demand-driven model, a `/benches/nearby` request can trigger background ingestion for cells the user didn't directly query — specifically the k=2..3 cascade pre-warm ring. Without a push channel, the client has no way to learn that this data has arrived short of polling.
 
-This epic covers pushing a "ready" signal to the client the moment the ingestion transaction commits.
+This design covers pushing a "ready" signal to the client the moment the ingestion transaction commits.
 
-**Scope clarification:** this is *not* about the user's own cold-start request. That path is synchronous (BEN-9) and returns real data inline. This is about the cells warmed *around* it.
+**Scope clarification:** this is *not* about the user's own cold-start request. That path is synchronous and returns real data inline. This is about the cells warmed *around* it.
 
 ---
 
@@ -68,7 +67,7 @@ Chosen over Server-Sent Events. Functionally SSE would suffice — the channel i
 
 ### Cross-process signal: Postgres `LISTEN/NOTIFY`
 
-The ingestion worker is a separate process from the API (a consequence of BEN-4's decision to run ingestion as a batch job). An in-process event bus therefore cannot carry the signal. `LISTEN/NOTIFY` uses the database already in the architecture rather than adding Redis or a broker.
+The ingestion worker is a separate process from the API (a consequence of the deployment-shape design's decision to run ingestion as a batch job). An in-process event bus therefore cannot carry the signal. `LISTEN/NOTIFY` uses the database already in the architecture rather than adding Redis or a broker.
 
 ### Connection lifecycle: transient
 
@@ -84,9 +83,9 @@ The push carries "cell X is ready," not bench data. The REST response stays the 
 
 ## 4. Dependencies
 
-- **BEN-1 / BEN-10** — the cascade pre-warm path is what generates the events worth pushing.
-- **BEN-2** — the `nearby` handler is where a "pending" state would be signalled and where the client learns to open a socket.
-- **BEN-4** — the choice of Postgres provider constrains this design significantly (see below).
+- **Ingestion pipeline's cascade pre-warming** — the cascade pre-warm path is what generates the events worth pushing.
+- **Nearby-search design** — the `nearby` handler is where a "pending" state would be signalled and where the client learns to open a socket.
+- **Deployment-shape design** — the choice of Postgres provider constrains this design significantly (see below).
 
 ---
 
@@ -94,11 +93,11 @@ The push carries "cell X is ready," not bench data. The REST response stays the 
 
 `LISTEN/NOTIFY` **does not survive a connection pooler running in transaction mode.** Several managed Postgres providers front connections with pgBouncer in exactly that mode by default — Supabase notably so.
 
-This means the provider choice in BEN-4 is not free with respect to this epic. Either the provider must offer a direct (non-pooled) connection for the listener, or this architecture doesn't work as designed. This should be verified before the provider is chosen, not after.
+This means the provider choice in the deployment-shape design is not free with respect to this design. Either the provider must offer a direct (non-pooled) connection for the listener, or this architecture doesn't work as designed. This should be verified before the provider is chosen, not after.
 
 ---
 
-## 6. Open questions / sub-issues to break out
+## 6. Open questions / sub-questions to break out
 
 1. **WebSocket connection lifecycle and timeout handling.** What happens if ingestion never completes — Overpass fails, the worker crashes, the job is dropped from the in-process queue on restart? The socket cannot wait forever. Needs a timeout, and a decision on what the client is told when it fires.
 

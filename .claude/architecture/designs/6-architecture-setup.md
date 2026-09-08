@@ -1,13 +1,12 @@
-# BEN-6 — Project Architecture Setup: Final Design
+# Project Architecture Setup — Final Design
 
-**Epic:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)
-**Status:** Tool choices settled, CI wiring blocked on BEN-4
+**Status:** Tool choices settled, CI wiring blocked on the deployment-shape design
 
 ---
 
 ## 1. Purpose
 
-Tooling and coding-standards setup for both the Go backend and the Flutter/Dart client — linting, formatting, testing conventions, CI. Deliberately kept distinct from the feature and architecture-design epics.
+Tooling and coding-standards setup for both the Go backend and the Flutter/Dart client — linting, formatting, testing conventions, CI. Deliberately kept distinct from the feature and architecture-design topics.
 
 **Governing principle:** given the project's learning goal, favour stricter and more comprehensive tooling over minimal defaults. More rules firing surfaces more idioms of each language. A linter that never complains teaches nothing.
 
@@ -33,7 +32,7 @@ The meta-linter, aggregating the individual analysers behind one config and one 
 
 ### Integration
 
-- Wire into CI once a CI pipeline exists — depends on BEN-4.
+- Wire into CI once a CI pipeline exists — depends on the deployment-shape design.
 - Optionally available as a pre-commit hook or a `make` target for local use.
 
 ---
@@ -62,21 +61,15 @@ A pre-commit hook or Makefile target running both the Go and Dart lint/format to
 
 ---
 
-## 5. Relationship to other epics
+## 5. Relationship to other designs
 
-- **BEN-4** — CI pipeline setup lives there; this epic's tools plug into it. This is the blocking dependency.
-- **BEN-2 / BEN-3** — the `chi` router and the visitor-ID middleware are the first real consumers of the Go conventions established here.
-
----
-
-## 6. Note on BEN-7
-
-BEN-7 was created as a duplicate subtask of this epic. Its content was merged back into BEN-6 and the issue has since been deleted. Recorded here so the ID gap in the project is explicable.
+- **Deployment-shape design** — CI pipeline setup lives there; this design's tools plug into it. This is the blocking dependency.
+- **Nearby-search and visitor-identity designs** — the `chi` router and the visitor-ID middleware are the first real consumers of the Go conventions established here.
 
 ---
 
-## 7. Open items
+## 6. Open items
 
-1. **CI platform** — blocked on BEN-4. GitHub Actions is the obvious default given the repo is on GitHub and BEN-4 already contemplates Actions for scheduled ingestion.
-2. **Testing conventions** — the epic scopes testing conventions as in-scope but doesn't yet specify any. Relevant existing decisions: BEN-2's repository interface exists specifically to enable service-layer tests without a database, so at minimum there's a stated intent to unit-test the service layer.
+1. **CI platform** — blocked on the deployment-shape design. GitHub Actions is the obvious default given the repo is on GitHub and that design already contemplates Actions for scheduled ingestion.
+2. **Testing conventions** — this design scopes testing conventions as in-scope but doesn't yet specify any. Relevant existing decisions: the nearby-search design's repository interface exists specifically to enable service-layer tests without a database, so at minimum there's a stated intent to unit-test the service layer.
 3. **Whether the ruleset tightens over time** — "start permissive" is decided, but there's no stated trigger for ratcheting up.

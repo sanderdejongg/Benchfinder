@@ -1,6 +1,5 @@
-# BEN-4 — Deployment Shape: Final Design
+# Deployment Shape — Final Design
 
-**Epic:** [BEN-4](https://benchfinder.youtrack.cloud/issue/BEN-4)
 **Status:** Shape settled, specific providers not yet chosen
 
 ---
@@ -62,7 +61,7 @@ Stateless small API. No orchestration platform needed.
 
 **Leaning:** Fly.io or Render — Go binary in a small Docker image, managed Postgres reached via a connection string in an environment variable.
 
-**Build note carried from BEN-8:** `uber/h3-go` is CGo-based. That rules out the trivial `CGO_ENABLED=0` static binary and means the Docker build needs a C toolchain, with a multi-stage build to keep the final image small. Worth knowing before the base image is picked.
+**Build note carried from the ingestion pipeline's H3 grid work:** `uber/h3-go` is CGo-based. That rules out the trivial `CGO_ENABLED=0` static binary and means the Docker build needs a C toolchain, with a multi-stage build to keep the final image small. Worth knowing before the base image is picked.
 
 ---
 
@@ -81,19 +80,19 @@ A batch job, not a live service.
 
 ---
 
-## 6. Related deployment concerns from other epics
+## 6. Related deployment concerns from other designs
 
 These land here even though they originate elsewhere:
 
-- **BEN-3 retention job.** The 12-month `Visitor` purge needs a scheduled execution mechanism — the same one the ingestion job will use. This is why BEN-3's ops sub-issue placement is blocked on this epic.
-- **BEN-5 LISTEN connection.** Each API instance holds a long-lived Postgres `LISTEN` connection separate from its query pool. Any provider with an aggressive connection pooler in transaction mode (notably Supabase's pgBouncer default) will break `LISTEN/NOTIFY`. This is a real constraint on the provider choice, not a detail.
-- **BEN-6 CI.** The lint and test pipeline wires into whatever CI exists here.
+- **Visitor-identity retention job.** The 12-month `Visitor` purge needs a scheduled execution mechanism — the same one the ingestion job will use. This is why the ops work in the visitor-identity design is blocked on this one.
+- **Realtime-push LISTEN connection.** Each API instance holds a long-lived Postgres `LISTEN` connection separate from its query pool. Any provider with an aggressive connection pooler in transaction mode (notably Supabase's pgBouncer default) will break `LISTEN/NOTIFY`. This is a real constraint on the provider choice, not a detail.
+- **Architecture-setup CI.** The lint and test pipeline wires into whatever CI exists here.
 
 ---
 
 ## 7. Open items
 
-1. **Choose a specific managed Postgres provider.** Note the BEN-5 `LISTEN/NOTIFY` constraint above — it likely narrows this more than any other factor.
+1. **Choose a specific managed Postgres provider.** Note the realtime-push design's `LISTEN/NOTIFY` constraint above — it likely narrows this more than any other factor.
 2. **Choose a specific API hosting platform.**
 3. **Decide when to graduate from manual to scheduled ingestion.**
-4. **Reconcile the Geofabrik preference with BEN-1.** BEN-1's entire model is demand-driven live Overpass queries per H3 cell, which is directly at odds with this epic's stated preference for static extracts. The two probably serve different jobs — Overpass for per-cell demand fills, Geofabrik for bulk refresh — but that split is currently implied rather than written down anywhere.
+4. **Reconcile the Geofabrik preference with the ingestion pipeline design.** That design's entire model is demand-driven live Overpass queries per H3 cell, which is directly at odds with this design's stated preference for static extracts. The two probably serve different jobs — Overpass for per-cell demand fills, Geofabrik for bulk refresh — but that split is currently implied rather than written down anywhere.

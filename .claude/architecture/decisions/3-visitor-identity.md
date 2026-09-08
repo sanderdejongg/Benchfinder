@@ -1,6 +1,6 @@
-# BEN-3 — Anonymous Visitor Identity: Decision Log
+# Anonymous Visitor Identity — Decision Log
 
-Decisions leading to the design in `BEN-3-visitor-identity-design.md`.
+Decisions leading to `../designs/3-visitor-identity.md`.
 
 ---
 
@@ -14,7 +14,7 @@ Decisions leading to the design in `BEN-3-visitor-identity-design.md`.
 
 Building it now, as inert plumbing, is far cheaper than retrofitting identity onto a live app later — retrofitting means either losing all existing users' state or writing a migration for data that was never keyed.
 
-**Guard against drift:** the epic states explicitly that at MVP nothing returns it, nothing branches on it, and no analytics consumes it. The plumbing is present and unused, by design.
+**Guard against drift:** the design states explicitly that at MVP nothing returns it, nothing branches on it, and no analytics consumes it. The plumbing is present and unused, by design.
 
 ---
 
@@ -24,7 +24,7 @@ Building it now, as inert plumbing, is far cheaper than retrofitting identity on
 
 **Rationale:** A persistent anonymous ID plus location data is, functionally, a tracking system — the absence of a name or email doesn't change that. Naming this honestly up front is what makes the downstream decisions (D4, D6, D7) legible instead of arbitrary.
 
-**Related prior decision carried in:** location-data monetization was evaluated as a business model and shelved, on two grounds: GDPR purpose-limitation (data collected to show you benches cannot be repurposed for sale), and app-store policy risk. The epic records this so that the ID isn't quietly repurposed later by someone who doesn't know the question was already asked and answered.
+**Related prior decision carried in:** location-data monetization was evaluated as a business model and shelved, on two grounds: GDPR purpose-limitation (data collected to show you benches cannot be repurposed for sale), and app-store policy risk. This is recorded so that the ID isn't quietly repurposed later by someone who doesn't know the question was already asked and answered.
 
 ---
 
@@ -114,12 +114,12 @@ The rule is stated as an absolute rather than a guideline because it's the kind 
 
 **Decision:** No endpoint returns the ID. No feature branches on it. No analytics consumes it.
 
-**Rationale:** Keeps the MVP scope honest and gives a clear test for scope creep — if any of those three become true, that's a new epic with its own privacy review, not an incremental change to plumbing.
+**Rationale:** Keeps the MVP scope honest and gives a clear test for scope creep — if any of those three become true, that's a new design with its own privacy review, not an incremental change to plumbing.
 
 ---
 
 ## Unresolved at time of writing
 
-**Synchronous vs. deferred upsert in middleware.** Open. Synchronous is simpler and never drops a write, but puts a database write on the critical path of a read endpoint that may already be paying for a cold-start Overpass fetch (BEN-9). Deferred keeps the read path clean but adds a queue, a drop-on-shutdown failure mode, and coupling to the BEN-11 worker pool. Not blocking, but it should be settled before the middleware is written rather than after.
+**Synchronous vs. deferred upsert in middleware.** Open. Synchronous is simpler and never drops a write, but puts a database write on the critical path of a read endpoint that may already be paying for a cold-start Overpass fetch. Deferred keeps the read path clean but adds a queue, a drop-on-shutdown failure mode, and coupling to the ingestion pipeline's worker pool. Not blocking, but it should be settled before the middleware is written rather than after.
 
-**Where the ops retention sub-issue lives.** Whether to create it under BEN-3 now or defer pending BEN-4, since the enforcement mechanism is entirely determined by the hosting platform choice — which is itself still open.
+**Where the ops retention work lives.** Whether to create it here now or defer pending the deployment-shape design, since the enforcement mechanism is entirely determined by the hosting platform choice — which is itself still open.

@@ -1,6 +1,6 @@
-# BEN-2 — `GET /benches/nearby`: Decision Log
+# `GET /benches/nearby` — Decision Log
 
-Decisions leading to the design in `BEN-2-nearby-search-design.md`.
+Decisions leading to `../designs/2-nearby-search.md`.
 
 ---
 
@@ -15,7 +15,7 @@ Decisions leading to the design in `BEN-2-nearby-search-design.md`.
 | Option | Assessment |
 |---|---|
 | Fixed radius | Rejected outright — fails at both ends of the density spread. |
-| **Adaptive radius ladder** (300 → 750 → 1500 → 2000m, expand until N results found) | This was the original design in the epic. Works, but requires either multiple sequential queries or ladder logic that has to decide when "enough" results have been found. Each rung is a separate index traversal. |
+| **Adaptive radius ladder** (300 → 750 → 1500 → 2000m, expand until N results found) | This was the original design. Works, but requires either multiple sequential queries or ladder logic that has to decide when "enough" results have been found. Each rung is a separate index traversal. |
 | **KNN + hard cutoff** | Chosen. |
 
 **Rationale:** The ladder treats density adaptation as a control-flow problem to be solved in application code. KNN makes it a property of the query itself — the GIST index walks outward from the query point and stops when it has N rows, which *is* the adaptive behaviour, achieved in one round trip with no state machine.
@@ -70,7 +70,7 @@ The key realisation was that the ladder and the "single max-radius query" option
 
 **Alternatives considered:** stdlib `net/http` with `ServeMux` alone; Gin; Echo; Fiber.
 
-**Rationale:** `chi` is a thin layer over `net/http` rather than a framework with its own request/response abstractions. Handlers stay `http.HandlerFunc`, and middleware stays standard `func(http.Handler) http.Handler` — which is what the visitor-ID middleware from BEN-3 needs to compose cleanly.
+**Rationale:** `chi` is a thin layer over `net/http` rather than a framework with its own request/response abstractions. Handlers stay `http.HandlerFunc`, and middleware stays standard `func(http.Handler) http.Handler` — which is what the visitor-ID middleware from the visitor-identity design needs to compose cleanly.
 
 **Learning-goal reasoning:** Gin or Fiber would teach their own conventions. `chi` keeps the Go standard library's HTTP model front and centre while adding the routing ergonomics that plain `ServeMux` lacks. For learning Go rather than learning a Go framework, that's the right side of the trade.
 

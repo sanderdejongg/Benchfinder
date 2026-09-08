@@ -1,6 +1,6 @@
-# BEN-1 — Ingestion Pipeline: Decision Log
+# Ingestion Pipeline — Decision Log
 
-Decisions that produced the design in `BEN-1-ingestion-pipeline-design.md`, including alternatives that were considered and rejected. Covers BEN-1 and its children BEN-8, BEN-9, BEN-10, BEN-11.
+Decisions leading to `../designs/1-ingestion-pipeline.md`, including alternatives that were considered and rejected. Covers the pipeline as a whole and its H3 grid, cold-start, cascade pre-warming, and dispatch mechanism components.
 
 ---
 
@@ -50,7 +50,7 @@ Decisions that produced the design in `BEN-1-ingestion-pipeline-design.md`, incl
 
 **Rationale:** The density research (95–107/km² in historic centres vs ~5/km² in nature) makes it fairly clear that a single resolution will eventually be wrong at one end. But *when* a cell should subdivide is a genuinely open question that needs real usage data to answer well. The cheap part — making the schema able to express multiple resolutions — costs almost nothing now and avoids a migration later. The expensive part is deferred.
 
-This is a deliberate instance of the project's "explicit deferral" pattern: named and written down in the epic rather than silently dropped.
+This is a deliberate instance of the project's "explicit deferral" pattern: named and written down rather than silently dropped.
 
 ---
 
@@ -64,7 +64,7 @@ This is a deliberate instance of the project's "explicit deferral" pattern: name
 
 **Rationale:** "Where can I sit?" is a question with a short patience window. Returning an empty list to the very first user in an area is a bad first impression, and a "check back later" state in a utility app this simple is worse than a two-second wait. Blocking keeps the mental model simple: you ask, you get benches.
 
-**Assumption made explicit:** Overpass latency for a bounded bbox query is ms-scale. This is written into BEN-9 as a falsifiable assumption. If real latency proves to be seconds, the design flips to async + BEN-5's push channel — which is one of the reasons BEN-5 exists at all.
+**Assumption made explicit:** Overpass latency for a bounded bbox query is ms-scale. This is written into the cold-start design as a falsifiable assumption. If real latency proves to be seconds, the design flips to async + the real-time push channel — which is one of the reasons that design exists at all.
 
 ---
 
@@ -74,7 +74,7 @@ This is a deliberate instance of the project's "explicit deferral" pattern: name
 
 **Rationale:** Turns the cold-start penalty from a per-cell cost into a roughly one-time cost per *region visited*. A user who walks or scrolls outward from where they first searched should be moving into already-warm cells. Roughly 900m–1400m out at res 8, sized on walking distance.
 
-**Known issue:** The original justification referenced the 750m/1500m radius ladder from BEN-2, which was subsequently superseded by KNN. The k value is still defensible on walking-distance grounds, but the stated rationale now points at a design that no longer exists.
+**Known issue:** The original justification referenced the 750m/1500m radius ladder from the original nearby-search scope, which was subsequently superseded by KNN. The k value is still defensible on walking-distance grounds, but the stated rationale now points at a design that no longer exists.
 
 ---
 
@@ -94,7 +94,7 @@ This is a deliberate instance of the project's "explicit deferral" pattern: name
 
 **Decision:** All writes are upserts deduped on `(source, source_id)` — i.e. `('osm', <node/way id>)`. Writes are chunked and transactional.
 
-**Rationale:** Re-polling a cell must always be safe. This is the single property that makes everything else in the pipeline tolerable to get wrong: cascade overlap, retries, a manual re-run, a partial failure mid-ingest. Without it, every one of those becomes a duplicate-data bug. BEN-4 independently flags this as the highest-priority property of the ingestion job, above scheduling sophistication.
+**Rationale:** Re-polling a cell must always be safe. This is the single property that makes everything else in the pipeline tolerable to get wrong: cascade overlap, retries, a manual re-run, a partial failure mid-ingest. Without it, every one of those becomes a duplicate-data bug. The deployment-shape decisions independently flag this as the highest-priority property of the ingestion job, above scheduling sophistication.
 
 ---
 
@@ -127,6 +127,6 @@ This is a deliberate instance of the project's "explicit deferral" pattern: name
 ## Unresolved at time of writing
 
 - Freshness window duration for `polled_cells.polled_at`.
-- Reconciling BEN-1's Overpass-centric model with BEN-4's stated preference for Geofabrik extracts.
+- Reconciling this pipeline's Overpass-centric model with the deployment-shape design's stated preference for Geofabrik extracts.
 - Cascade depth cap — whether a cascade-warmed cell may itself cascade (it should not).
 - Cold-start failure behaviour when Overpass is unavailable.

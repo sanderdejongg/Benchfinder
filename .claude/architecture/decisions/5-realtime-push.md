@@ -1,6 +1,6 @@
-# BEN-5 — Real-Time Push: Decision Log
+# Real-Time Push — Decision Log
 
-Decisions leading to the design in `BEN-5-realtime-push-design.md`.
+Decisions leading to `../designs/5-realtime-push.md`.
 
 ---
 
@@ -26,7 +26,7 @@ Decisions leading to the design in `BEN-5-realtime-push-design.md`.
 
 | Option | Why rejected |
 |---|---|
-| In-process event bus (Go channel) | **Impossible given the architecture.** BEN-4 runs ingestion as a separate batch process from the API. A channel cannot cross a process boundary. |
+| In-process event bus (Go channel) | **Impossible given the architecture.** The deployment-shape design runs ingestion as a separate batch process from the API. A channel cannot cross a process boundary. |
 | Redis pub/sub | Works, but adds a whole piece of infrastructure that exists solely for this one signal. |
 | Ingestion worker calls an internal API endpoint | Requires the worker to know about and reach every API instance, which reintroduces service discovery for one message. |
 
@@ -74,23 +74,23 @@ Costs one extra round trip, which is trivially acceptable for a signal that arri
 
 ## D6 — Scoped to cascade pre-warm, not to the user's own request
 
-**Decision:** This mechanism exists for cells warmed by the k=2..3 cascade (BEN-10), not for the cold-start cell the user actually queried.
+**Decision:** This mechanism exists for cells warmed by the k=2..3 cascade, not for the cold-start cell the user actually queried.
 
-**Rationale:** BEN-9 decided the user's own cold-start request blocks and returns real data inline. There is nothing to push for that request — it already got its answer. The value of push is entirely in the *surrounding* cells, which the user may pan into next.
+**Rationale:** The ingestion pipeline decided the user's own cold-start request blocks and returns real data inline. There is nothing to push for that request — it already got its answer. The value of push is entirely in the *surrounding* cells, which the user may pan into next.
 
-Worth stating explicitly because it's easy to misread this epic as "the cold-start fix," which would put it in direct conflict with BEN-9's synchronous design.
+Worth stating explicitly because it's easy to misread this design as "the cold-start fix," which would put it in direct conflict with the cold-start design's synchronous behaviour.
 
-**Latent connection:** if BEN-9's assumption about ms-scale Overpass latency turns out to be wrong, the cold-start path would flip to async — and this mechanism is already the thing that would make that flip possible. That's a real, if unstated, part of why building it is worthwhile.
+**Latent connection:** if the assumption about ms-scale Overpass latency turns out to be wrong, the cold-start path would flip to async — and this mechanism is already the thing that would make that flip possible. That's a real, if unstated, part of why building it is worthwhile.
 
 ---
 
 ## D7 — Accepting the connection-pooler constraint
 
-**Decision (implicit, now made explicit):** choosing `LISTEN/NOTIFY` constrains BEN-4's provider choice.
+**Decision (implicit, now made explicit):** choosing `LISTEN/NOTIFY` constrains the deployment-shape design's provider choice.
 
 **The problem:** `LISTEN/NOTIFY` does not work through a connection pooler in transaction mode. Several managed providers default to exactly that — Supabase notably fronts connections with pgBouncer.
 
-**Consequence:** the provider must offer a direct, non-pooled connection for the listener, or this architecture doesn't work as designed. This should be verified *before* BEN-4's provider decision is made. It is arguably the single strongest filter on that still-open choice, stronger than pricing or free-tier limits.
+**Consequence:** the provider must offer a direct, non-pooled connection for the listener, or this architecture doesn't work as designed. This should be verified *before* the deployment-shape provider decision is made. It is arguably the single strongest filter on that still-open choice, stronger than pricing or free-tier limits.
 
 ---
 
@@ -106,7 +106,7 @@ If the WebSocket fails to establish, the options are to fall back to polling or 
 
 ## Unresolved at time of writing
 
-1. **Timeout handling.** What happens when ingestion never completes — Overpass down, worker crashed, job lost from the in-process queue on restart (a known gap from BEN-11's no-persistence decision). The socket needs a deadline and the client needs to be told something when it expires.
+1. **Timeout handling.** What happens when ingestion never completes — Overpass down, worker crashed, job lost from the in-process queue on restart (a known gap from the dispatch mechanism's no-persistence decision). The socket needs a deadline and the client needs to be told something when it expires.
 
 2. **`LISTEN` reconnect resilience.** Reconnect with backoff is obvious. The harder question is the correctness gap: `LISTEN/NOTIFY` has no replay, so notifications fired during a disconnect are lost permanently. Whether that needs closing — and if so, whether via a polled `polled_cells` reconciliation sweep on reconnect — is open.
 
