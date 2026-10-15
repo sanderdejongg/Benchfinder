@@ -2,7 +2,7 @@
 
 Decisions leading to `../designs/4-deployment-shape.md`.
 
-**Updated:** 2026-10-08
+**Updated:** 2026-10-15
 
 ---
 
@@ -166,7 +166,7 @@ Decisions leading to `../designs/4-deployment-shape.md`.
 
 **Supersedes:** D3, D10, D13.
 
-**Status:** Settled. The h3-pg check is pre-implementation and open (design Open item 1).
+**Status:** Settled. The h3-pg check is resolved by D17 (2026-10-15).
 
 ---
 
@@ -207,8 +207,33 @@ The visitor purge is scheduled from day one while ingestion stays manual because
 
 ---
 
+## D17 — Postgres 17, Standard Edition, on DigitalOcean; h3-pg confirmed
+
+**Resolves:** the pre-implementation h3-pg check in D14.
+
+**Decision:** Provision DigitalOcean Managed Postgres 17, Standard Edition. h3-pg availability is confirmed from DigitalOcean's supported-extensions documentation (checked 2026-10-15), which lists `h3` and `h3_postgis` for Standard Edition on Postgres 14–17.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Postgres 18 | DigitalOcean does not list `h3` or `h3_postgis` for it. |
+| Advanced Edition | Lists no PostGIS and no h3 extensions on any version. |
+| Switching provider (Neon or AWS RDS, both of which list h3-pg) | Not needed: D14's fallback condition did not occur. |
+| Dropping h3-pg | See `1-1-h3-grid-freshness` D6. |
+
+**Rationale:** The newest Postgres major that meets D14's hard filter.
+
+**Trade-off accepted:** the Postgres 18 upgrade is blocked on DigitalOcean. Revisit trigger: DigitalOcean lists h3 for Postgres 18, or a Postgres 17 end-of-support date forces the move (then re-run the D14 provider check).
+
+**Assumption, falsifiable:** the documentation matches what the instance offers. Checked after provisioning by reading `pg_available_extensions`, which also gives the h3-pg version the CI image pins (`6-architecture-setup` D24).
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
-- h3-pg availability on DigitalOcean Managed Postgres (D14; design Open item 1).
+- Installed h3-pg version on the provisioned instance (D17; design Open item 1).
 - Droplet OS patching cadence, RabbitMQ backup, and Droplet sizing (design Open items 2 to 4).
 - Caddy access-log filter for `X-Visitor-Id` (design Open item 5; `3-visitor-identity` D13).

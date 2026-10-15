@@ -1,6 +1,6 @@
 # Project Architecture Setup — Final Design
 
-**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** settled, not implemented  **Updated:** 2026-10-08
+**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** settled, not implemented  **Updated:** 2026-10-15
 
 ---
 
@@ -15,7 +15,8 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 ## 2. Constraints
 
 - **Strict by default.** Stricter tooling over minimal defaults, in both toolchains (D2, D17).
-- **One entry point for both toolchains.** A single local command runs the backend and client lint and format tools, and CI runs the same commands (D8).
+- **One entry point for both toolchains.** A single local command runs the backend and client lint and format tools, and CI runs the same commands (D8, D23).
+- **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17) and h3-pg version as the managed instance (D24, `4-deployment-shape` D17).
 
 ---
 
@@ -23,11 +24,12 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 
 ```
 /CLAUDE.md                               project orientation
+/Makefile                                single entry point for both toolchains (D23)
 /.claude/architecture/designs/           current state, one file per topic
 /.claude/architecture/decisions/         why, append-only
 /.claude/skills/decision-log/SKILL.md    the skill that writes design pairs
 /.claude/rules/                          project rules
-/backend/                                Symfony (later phase)
+/backend/                                Symfony
 /app/                                    Flutter (later phase)
 ```
 
@@ -41,20 +43,27 @@ Doc naming: numeric topic slugs (`2-nearby-search`, children `1-1-…`). The tra
 
 ### Stack
 
-Symfony on FrankenPHP, Doctrine with jsor/doctrine-postgis, Symfony Messenger on RabbitMQ, Symfony Scheduler, Symfony Console. Chosen as part of the stack for learning value, with the newer parts of Symfony as the explicit learning target (D13).
+PHP 8.5 and the latest stable Symfony 8.x minor at scaffold time (D18). Symfony on FrankenPHP, Doctrine with jsor/doctrine-postgis, Symfony Messenger on RabbitMQ, Symfony Scheduler, Symfony Console. Chosen as part of the stack for learning value, with the newer parts of Symfony as the explicit learning target (D13).
 
 ### Static analysis and formatting
 
-- **PHPStan at maximum level from day one** (D17). Stricter than its defaults, so more idioms surface. Extensions and rule set are an open item.
-- **PHP-CS-Fixer** for formatting.
-- **Rector** for automated upgrades and idiom changes.
+Four standalone tools, each with its own committed config (D4). No ECS wrapper (D21).
+
+| Tool | Role | Configuration |
+|---|---|---|
+| PHPStan | Static analysis | Level `max`. No extensions, no `bleedingEdge`, no baseline (D19, provisional). |
+| PHP-CS-Fixer | Formatting (fixes) | `@Symfony`, `@Symfony:risky`, the PHP migration set matching PHP 8.5, `declare_strict_types` on (D20). |
+| PHP_CodeSniffer | Coding-standard sniffs (reports, `phpcbf` fixes) | Standard not chosen (open item 1). Must not contradict PHP-CS-Fixer output (D21). |
+| Rector | Automated upgrades and idiom changes | `withPhpSets()`, `withComposerBased(symfony, doctrine, phpunit)`, prepared sets `deadCode`, `codeQuality`, `typeDeclarations`, `earlyReturn`. CI runs `--dry-run` (D22). |
 
 Starting permissive was considered and set aside (D3, superseded). The principle in D2 is that stricter tooling teaches more.
+
+Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framework APIs that return `mixed` (container parameters, query results) are flagged at max level and need inline type assertions.
 
 ### Testing
 
 - **PHPUnit**, the Symfony default (D15).
-- **Integration tests against a real database.** A PostGIS container with h3-pg runs under docker compose locally, and as a GitHub Actions service container in CI (D16).
+- **Integration tests against a real database.** A PostGIS container with h3-pg runs under docker compose locally, and as a GitHub Actions service container in CI (D16). The image is built from a Dockerfile in the repository and published to GHCR, since no official PostGIS image ships h3-pg and service containers need a prebuilt image (D24).
 - **Per-test rollback** with dama/doctrine-test-bundle, so each test runs in a transaction that is rolled back (D16).
 - **Messenger's in-memory transport in tests:** dispatched messages are captured and asserted without a broker. Handler tests invoke the handler directly, or run the worker once (D16).
 - **Overpass fixtures**: golden JSON responses, served through Symfony's MockHttpClient (D16).
@@ -80,24 +89,25 @@ Starting permissive was considered and set aside (D3, superseded). The principle
 
 ## 6. CI
 
-GitHub Actions runs on every pull request (D10). Jobs:
+GitHub Actions runs on every pull request (D10). Each job calls a Makefile target, so CI and local runs execute the same commands (D8, D23).
 
-- Backend: static analysis (PHPStan, PHP-CS-Fixer, Rector check), unit tests, integration tests with the PostGIS service container.
-- Client: very_good_analysis and dart format check, flutter_test.
-
-A single local entry point runs both toolchains, and CI runs the same commands (D8).
+- **Backend, from the first commit:** PHPStan, PHP-CS-Fixer check, PHP_CodeSniffer, Rector `--dry-run`, unit tests.
+- **Backend, added with the first integration test:** integration tests against the PostGIS + h3-pg service container (D24).
+- **Client, added when `/app` is scaffolded:** very_good_analysis, dart format check, flutter_test.
 
 ---
 
 ## 7. Contracts & data model
 
-No schema. Configuration files, one per toolchain, committed to the repository (D4).
+No schema. Configuration files, one per tool, committed to the repository (D4).
+
+Makefile targets are the contract between local runs and CI (D23). Target names are not fixed yet (open item 2).
 
 ---
 
 ## 8. Dependencies
 
-- `4-deployment-shape`: GitHub Actions is the CI platform. Scheduled jobs run on Symfony Scheduler instead.
+- `4-deployment-shape`: GitHub Actions is the CI platform. Scheduled jobs run on Symfony Scheduler instead. Postgres 17 Standard Edition and its h3-pg version fix the test image (D17 there).
 - `2-nearby-search`: the repository seam is what makes service-layer unit testing possible.
 - `3-visitor-identity`, `1-1-h3-grid-freshness`: test approach for database-backed features.
 - `7-flutter-client`: client test and lint tooling.
@@ -107,6 +117,9 @@ No schema. Configuration files, one per toolchain, committed to the repository (
 ## 9. Explicitly deferred
 
 - **Lint and static-analysis ratchets.** None. The analysers start at their strictest level (D17), so there is no later tightening step.
+- **PHPStan extensions and `bleedingEdge`.** Left out for now (D19). Not a ratchet: level stays at max; this is about framework type knowledge.
+- **Pre-commit hook.** Not built. The Makefile is the entry point (D23); nothing yet needs a hook on top.
+- **CI database job and the PostGIS + h3-pg image.** Added with the first integration test, not before (D24).
 
 ---
 
@@ -119,7 +132,6 @@ No schema. Configuration files, one per toolchain, committed to the repository (
 
 ## 11. Open items
 
-1. **PHPStan extensions and level configuration.** Which extensions, and whether any baseline is needed at max level.
-2. **PHP-CS-Fixer rule set.** Not chosen.
-3. **Rector sets.** Not chosen.
-4. **Pre-commit hook or Makefile target.** Which mechanism the single local entry point uses (D8).
+1. **PHP_CodeSniffer standard.** Which standard and sniffs, and how formatting overlap with PHP-CS-Fixer is avoided (D21).
+2. **Makefile target names.** E.g. `check`, `fix`, `test`. Not fixed.
+3. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).

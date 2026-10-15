@@ -2,7 +2,7 @@
 
 Decisions leading to `../designs/1-1-h3-grid-freshness.md`.
 
-**Updated:** 2026-10-08
+**Updated:** 2026-10-15
 
 ---
 
@@ -77,7 +77,26 @@ Decisions leading to `../designs/1-1-h3-grid-freshness.md`.
 
 **Trade-off accepted:** freshness logic is no longer pure-function unit-testable. Its tests need PostGIS with h3-pg (`6-architecture-setup` D16).
 
-**Pre-implementation check:** the database provider must offer h3-pg. See `4-deployment-shape` D14 and the design's Open item 1.
+**Pre-implementation check:** the database provider must offer h3-pg. See `4-deployment-shape` D14. Resolved by `4-deployment-shape` D17 (2026-10-15).
+
+**Status:** Settled.
+
+---
+
+## D6 — h3-pg retained after the provider check
+
+**Decision:** Keep h3-pg (D5). DigitalOcean Managed Postgres 17 Standard Edition offers `h3` and `h3_postgis` (`4-deployment-shape` D17).
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| PostGIS `ST_HexagonGrid` in a local UTM projection, no extension | The only serious contender. Bench data covers a single region, which weakens D1's latitude-distortion argument, and neighbour rings are simple hex-coordinate maths. Rejected: it loses the cell hierarchy D2's res-8-to-9 graduation relies on, and the H3 learning value (D1), and it is a grid the project maintains itself. Worth it only if h3-pg had been unavailable. |
+| Native H3 library bound into PHP (FFI or a C extension) | Rejected in D5; nothing changed. |
+| Geohash | Rejected in D1. |
+| S2 | No managed provider offers an S2 extension. |
+
+**Rationale:** The only reason to leave h3-pg was provider availability, and that is confirmed.
 
 **Status:** Settled.
 
@@ -85,4 +104,4 @@ Decisions leading to `../designs/1-1-h3-grid-freshness.md`.
 
 ## Unresolved at time of writing
 
-- h3-pg availability on the chosen provider (design Open item 1).
+None.
