@@ -286,7 +286,7 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Rationale:** One file both a developer and CI invoke satisfies D8 directly.
 
-**Status:** Settled. Target names are an open item in the design.
+**Status:** Settled. Target names are set by D26.
 
 ---
 
@@ -322,7 +322,47 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Assumption, falsifiable:** `Classes.RequireAbstractOrFinal` is compatible with Doctrine entities. Checked before the sniff covers `src/Entity`; if it is not, entities are excluded from that sniff.
 
-**Status:** Settled.
+**Status:** Settled. Ownership rule 2 is clarified by D26.
+
+---
+
+## D26 — Makefile targets: `check`, `fix`, `test`; backend only until `/app` exists
+
+**Resolves:** the target names left open in D23. Clarifies D25 rule 2.
+
+**Decision:** The root Makefile has three targets:
+
+- `check` writes no files. It runs PHP-CS-Fixer in dry-run mode, then PHP_CodeSniffer, PHPStan, and Rector in dry-run mode. CI and local runs use it.
+- `fix` writes files. It runs Rector, then PHP-CS-Fixer, then phpcbf. Local only.
+- `test` runs the PHPUnit unit suite. The integration suite joins it when D24 adds it. CI and local runs use it.
+
+No target exists for `/app` until `/app` is scaffolded. The tool list per target is in the design, section 7.
+
+Clarification of D25: CI never writes files. "Only PHP-CS-Fixer fixes in CI" means PHP-CS-Fixer is the only fixer that may run, and it runs dry-run in CI.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Per-tool targets as the public interface (`make phpstan`, `make php-cs-fixer`, …) | CI would need one step per tool, and a developer would need to know the tool list. Each tool is run with its own CLI when needed, which is what D21 intends. Not needed now, since CI needs two commands. |
+| `format` in place of `fix` | The target also runs Rector and phpcbf, which change code beyond formatting. |
+| `lint` in place of `check` | Does not say whether the target writes files. `check` does. |
+| A `ci` target wrapping `check` and `test` | CI calls `check` and `test` directly. A wrapper would be a name with no caller. |
+| `check` that writes files, or CI running `fix` | CI does not write files: Rector runs `--dry-run` (D22), and only the local `fix` target runs phpcbf (D25). |
+| Client targets now (for example `analyze`) | `/app` does not exist, so there is nothing to run. Project rule: no speculative targets. |
+| Separate `test-unit` and `test-integration` targets now | Only the unit suite exists. Whether integration gets its own target is part of design Open item 1. |
+
+**Rationale:** The `check` and `fix` split follows whether a target writes files, so CI can call the one that cannot. The names are the verbs a developer types. Recommended in discussion: the three-target set and the `check` contents. Tool order in `check` follows D25: PHP-CS-Fixer runs before PHP_CodeSniffer. The `fix` order (Rector, PHP-CS-Fixer, phpcbf) keeps the same PHP-CS-Fixer-before-PHP_CodeSniffer order, and lets PHP-CS-Fixer format the code Rector changes.
+
+**Trade-off accepted:**
+
+- Make stops at the first failing tool. A PHP-CS-Fixer finding hides PHP_CodeSniffer, PHPStan and Rector output until it is fixed. The cost is a second `check` run.
+- `fix` does not run `check`. If phpcbf or Rector output fails `check`, the `fix` order is revisited.
+- Until `/app` exists, the Makefile covers the backend only. D8's two-toolchain intent has no client coverage before then.
+
+**Assumption, falsifiable:** each tool in `check` exits non-zero on findings, so a finding fails the target. Checked when the tools are first installed. A tool that exits zero on findings needs an explicit check in the target.
+
+**Status:** Settled for target names and contents. Where the targets run is design Open item 1.
 
 ---
 
@@ -351,6 +391,6 @@ D19's decision is unchanged and remains Provisional. This decision adds only its
 
 ## Unresolved at time of writing
 
-- Makefile target names (design Open item 1; D23).
+- Where the Makefile targets run, and how integration tests reach their database (design Open item 1; D26).
 - h3-pg version for the test image (design Open item 2; D24).
 - Trigger for phpstan-phpunit, and whether the strictness extensions need a trigger of their own (design Open item 3; D27).
