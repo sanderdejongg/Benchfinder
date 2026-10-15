@@ -222,7 +222,7 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Trade-off accepted:** without the Symfony and Doctrine extensions, PHPStan does not know framework return types. Calls such as container parameter lookups and query results resolve to `mixed`, which level max flags. These are handled with inline type assertions.
 
-**Status:** Provisional ("for now"). No revisit trigger agreed.
+**Status:** Provisional ("for now"). Revisit point set by D27 (2026-10-15).
 
 ---
 
@@ -326,7 +326,31 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 ---
 
+## D27 — Revisit point for D19: the first Doctrine entity or repository
+
+D19's decision is unchanged and remains Provisional. This decision adds only its revisit point.
+
+**Decision:** D19 is revisited no later than the first merged change that adds a Doctrine entity or a repository class under `backend/src/`. That change is the review point. The owner records the outcome in this log, either as a new decision or as a status note on D19. At the review, the owner decides whether to add phpstan-doctrine and phpstan-symfony, and whether to add or keep out the strictness extensions. This is a latest point, not an earliest one: a framework `mixed` need that appears earlier may reopen D19 earlier.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| A count of inline type assertions or `@var` overrides for framework types | Observable, but no number has been derived from anything, so the threshold would be invented. It also fires only after the cost has been paid in code. |
+| A date | The cost depends on code, not on the calendar. A date can pass with no Doctrine code written, or land in the middle of the nearby-search build. |
+| The milestone "nearby search shipped" | In practice the same event, since `2-nearby-search` introduces the first entity. "Shipped" is judged after the merge, so the merge itself is the more precise observable. |
+| No trigger; revisit ad hoc | This is the state D19 is in now. It has no end point, which is the gap this decision closes. |
+
+**Rationale:** D19's stated cost is framework types. Doctrine repositories and query results are the types phpstan-doctrine covers, and there is nothing for it to type before the first entity or repository exists. That event is visible in git history. Symfony container typing (phpstan-symfony) can matter earlier, which is why the trigger is a latest point. The strictness extensions (strict-rules, deprecation-rules, bleedingEdge) are not about framework code. They are placed at the same review rather than given a trigger of their own, because no separate trigger has been argued for them.
+
+**Trade-off accepted:** the review can come after inline assertions already exist, and those assertions are its input. The trigger also fires for a repository that uses only native SQL through DBAL. The KNN repository (`2-nearby-search` D7, D16) runs native SQL through DBAL, alongside ORM-mapped entities used for schema diffing (D16). Whether phpstan-doctrine types raw DBAL result rows is not checked in this change. The review must check it before it adds the extension.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
 - Makefile target names (design Open item 1; D23).
 - h3-pg version for the test image (design Open item 2; D24).
+- Trigger for phpstan-phpunit, and whether the strictness extensions need a trigger of their own (design Open item 3; D27).
