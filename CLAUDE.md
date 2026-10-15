@@ -40,7 +40,7 @@ Nearby search (`2-nearby-search`) comes before the ingestion pipeline (`1-ingest
 - Mercure (SSE) for push: one event per job, invalidation signal only (`5-realtime-push` D5, D12, D14).
 - Visitor ID is not logged (access-log filter required, see `3-visitor-identity`). The 12-month purge runs on Symfony Scheduler (`3-visitor-identity` D13–D14).
 - flutter_map over google_maps_flutter (`7-flutter-client` D1).
-- Backend tooling: PHPStan at max, PHP-CS-Fixer and PHP_CodeSniffer as separate tools (no ECS), Rector, curated Slevomat sniffs with no formatting rules, one Makefile as the entry point (`6-architecture-setup` D18–D23, D25, D26). CI database job waits for the first integration test (D24).
+- Backend tooling: PHPStan at max, PHP-CS-Fixer and PHP_CodeSniffer as separate tools (no ECS), Rector, curated Slevomat sniffs with no formatting rules, one Makefile as the entry point (`6-architecture-setup` D18–D23, D25, D26). Locally the targets run in the app container (Symfony Docker template, dev-only PostGIS + h3-pg `database` service); in CI directly on the runner (D28). CI database job waits for the first integration test (D24).
 - Postgres 17 Standard Edition; Postgres 18 is blocked until DigitalOcean offers h3 for it (`4-deployment-shape` D17).
 
 ## Explicitly deferred (don't re-litigate)
