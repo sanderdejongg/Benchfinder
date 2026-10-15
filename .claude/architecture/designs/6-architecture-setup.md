@@ -60,8 +60,8 @@ Four standalone tools, each with its own committed config (D4). No ECS wrapper (
 | Tool | Role | Configuration |
 |---|---|---|
 | PHPStan | Static analysis | Level `max`. No extensions, no `bleedingEdge`, no baseline (D19, provisional; revisit point D27). |
-| PHP-CS-Fixer | Formatting (fixes) | `@Symfony`, `@Symfony:risky`, the PHP migration set matching PHP 8.5, `declare_strict_types` on (D20). |
-| PHP_CodeSniffer | Non-formatting sniffs: types, complexity, structure | Slevomat Coding Standard, curated list below, no formatting sniffs. Report-only in CI; `phpcbf` runs only from the local `fix` target (D25, D26). |
+| PHP-CS-Fixer | Formatting (fixes) | `@Symfony`, `@Symfony:risky`, `@PHP8x5Migration` and `@PHP8x5Migration:risky`, `declare_strict_types` on (D20, D32). |
+| PHP_CodeSniffer | Non-formatting sniffs: types, complexity, structure | Slevomat Coding Standard, curated list below, no formatting sniffs. Sniffs resolve through `installed_paths`; the Composer installer plugin is blocked (D31). Report-only in CI; `phpcbf` runs only from the local `fix` target (D25, D26). |
 | Rector | Automated upgrades and idiom changes | `withPhpSets()`, `withComposerBased(symfony, doctrine, phpunit)`, prepared sets `deadCode`, `codeQuality`, `typeDeclarations`, `earlyReturn`. CI runs `--dry-run` (D22). |
 
 ### PHP_CodeSniffer sniffs (D25)
@@ -87,6 +87,8 @@ Ownership rules between PHP-CS-Fixer and PHP_CodeSniffer:
 `DisallowMixedTypeHint` complements D19: framework `mixed` is handled with inline assertions, and project code may not declare `mixed` itself.
 
 Starting permissive was considered and set aside (D3, superseded). The principle in D2 is that stricter tooling teaches more.
+
+Generated files: `config/reference.php` is excluded from PHPStan, PHP_CodeSniffer and Rector, and from PHP-CS-Fixer by its recipe. `config/bundles.php` is excluded from PHP_CodeSniffer and PHP-CS-Fixer. These are exclusions of framework-managed files, not a baseline (D30).
 
 Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framework APIs that return `mixed` (container parameters, query results) are flagged at max level and need inline type assertions.
 
@@ -119,7 +121,7 @@ Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framewor
 
 ## 6. CI
 
-GitHub Actions runs on every pull request (D10). CI calls the Makefile targets `check` and `test`, so CI and local runs execute the same commands (D8, D23, D26). The targets run directly on the runner, with PHP 8.5 installed by `setup-php`; its PHP extensions are kept in line with the Dockerfile by hand (D28).
+GitHub Actions runs on every pull request (D10). CI calls the Makefile targets `check` and `test`, so CI and local runs execute the same commands (D8, D23, D26). The targets run directly on the runner, with PHP 8.5 installed by `setup-php`; its PHP extensions are kept in line with the Dockerfile by hand (D28). The job's working directory is `backend`, and it calls `make -f ../Makefile EXEC= <target>` (D29).
 
 - **Backend, from the first commit:** `make check` (PHP-CS-Fixer dry-run, PHP_CodeSniffer, PHPStan, Rector dry-run) and `make test` (unit tests).
 - **Backend, added with the first integration test:** integration tests against the PostGIS + h3-pg service container (D24).
@@ -141,7 +143,8 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 
 - Any finding from a `check` tool fails the target. Make stops at the first failing tool, so later tools report only after earlier ones pass.
 - No targets exist for `/app` until it is scaffolded (D26).
-- Where the targets run (D28): one Makefile variable, `EXEC`, holds the command prefix. Locally it is the docker compose exec command for the app container. In CI it is empty, so the tools run directly on the runner. Target bodies are the same in both places.
+- Where the targets run (D28): one Makefile variable, `EXEC`, holds the command prefix. Locally it defaults to `docker compose --project-directory backend exec -T php`, run from the repository root. In CI it is empty, so the tools run directly on the runner. Target bodies are the same in both places.
+- Tool paths in the target bodies are relative to the backend root. That root is the container's working directory locally, and the job's working directory in CI (D29).
 
 ---
 
