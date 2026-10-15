@@ -18,6 +18,8 @@
 			request>uri query {
 				replace authorization REDACTED
 			}
+			# Never log the visitor ID (3-visitor-identity D13)
+			request>headers>X-Visitor-Id delete
 		}
 	}
 
