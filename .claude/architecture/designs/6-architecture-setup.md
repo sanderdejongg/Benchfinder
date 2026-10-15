@@ -51,7 +51,7 @@ Four standalone tools, each with its own committed config (D4). No ECS wrapper (
 
 | Tool | Role | Configuration |
 |---|---|---|
-| PHPStan | Static analysis | Level `max`. No extensions, no `bleedingEdge`, no baseline (D19, provisional). |
+| PHPStan | Static analysis | Level `max`. No extensions, no `bleedingEdge`, no baseline (D19, provisional; revisit point D27). |
 | PHP-CS-Fixer | Formatting (fixes) | `@Symfony`, `@Symfony:risky`, the PHP migration set matching PHP 8.5, `declare_strict_types` on (D20). |
 | PHP_CodeSniffer | Non-formatting sniffs: types, complexity, structure | Slevomat Coding Standard, curated list below, no formatting sniffs. Report-only in CI; `phpcbf` runs only from a local Makefile target (D25). |
 | Rector | Automated upgrades and idiom changes | `withPhpSets()`, `withComposerBased(symfony, doctrine, phpunit)`, prepared sets `deadCode`, `codeQuality`, `typeDeclarations`, `earlyReturn`. CI runs `--dry-run` (D22). |
@@ -139,7 +139,7 @@ Makefile targets are the contract between local runs and CI (D23). The check tar
 ## 9. Explicitly deferred
 
 - **Lint and static-analysis ratchets.** None. The analysers start at their strictest level (D17), so there is no later tightening step.
-- **PHPStan extensions and `bleedingEdge`.** Left out for now (D19). Not a ratchet: level stays at max; this is about framework type knowledge.
+- **PHPStan extensions and `bleedingEdge`.** Left out for now (D19). Not a ratchet: level stays at max; this is about framework type knowledge. Revisit point: the first merged Doctrine entity or repository class under `backend/src/`, proposed in D27. That merge is a latest point for the review, not an earliest one.
 - **Pre-commit hook.** Not built. The Makefile is the entry point (D23); nothing yet needs a hook on top.
 - **CI database job and the PostGIS + h3-pg image.** Added with the first integration test, not before (D24).
 
@@ -156,3 +156,4 @@ Makefile targets are the contract between local runs and CI (D23). The check tar
 
 1. **Makefile target names.** E.g. `check`, `fix`, `test`. Not fixed.
 2. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).
+3. **Trigger for phpstan-phpunit and the strictness extensions.** D27 sets the review point for phpstan-doctrine and phpstan-symfony. phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` are not given a trigger of their own. Whether they need one is open.
