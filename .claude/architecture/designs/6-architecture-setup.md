@@ -15,7 +15,7 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 ## 2. Constraints
 
 - **Strict by default.** Stricter tooling over minimal defaults, in both toolchains (D2, D17).
-- **One entry point for both toolchains.** A single local command runs the backend and client lint and format tools, and CI runs the same commands (D8, D23).
+- **One entry point.** The root Makefile holds the backend targets. CI runs the same targets as a local run (D8, D23). Client targets are added when `/app` is scaffolded, which is when the entry point covers both toolchains (D26).
 - **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17) and h3-pg version as the managed instance (D24, `4-deployment-shape` D17).
 
 ---
@@ -24,7 +24,7 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 
 ```
 /CLAUDE.md                               project orientation
-/Makefile                                single entry point for both toolchains (D23)
+/Makefile                                single entry point: check, fix, test (D23, D26)
 /.claude/architecture/designs/           current state, one file per topic
 /.claude/architecture/decisions/         why, append-only
 /.claude/skills/decision-log/SKILL.md    the skill that writes design pairs
@@ -53,7 +53,7 @@ Four standalone tools, each with its own committed config (D4). No ECS wrapper (
 |---|---|---|
 | PHPStan | Static analysis | Level `max`. No extensions, no `bleedingEdge`, no baseline (D19, provisional). |
 | PHP-CS-Fixer | Formatting (fixes) | `@Symfony`, `@Symfony:risky`, the PHP migration set matching PHP 8.5, `declare_strict_types` on (D20). |
-| PHP_CodeSniffer | Non-formatting sniffs: types, complexity, structure | Slevomat Coding Standard, curated list below, no formatting sniffs. Report-only in CI; `phpcbf` runs only from a local Makefile target (D25). |
+| PHP_CodeSniffer | Non-formatting sniffs: types, complexity, structure | Slevomat Coding Standard, curated list below, no formatting sniffs. Report-only in CI; `phpcbf` runs only from the local `fix` target (D25, D26). |
 | Rector | Automated upgrades and idiom changes | `withPhpSets()`, `withComposerBased(symfony, doctrine, phpunit)`, prepared sets `deadCode`, `codeQuality`, `typeDeclarations`, `earlyReturn`. CI runs `--dry-run` (D22). |
 
 ### PHP_CodeSniffer sniffs (D25)
@@ -73,8 +73,8 @@ Slevomat Coding Standard (`slevomat/coding-standard`), sniffs enabled one by one
 Ownership rules between PHP-CS-Fixer and PHP_CodeSniffer:
 
 1. Anything PHP-CS-Fixer can fix is owned by PHP-CS-Fixer. No whitespace, brace, import-ordering or Yoda sniffs in the PHP_CodeSniffer ruleset.
-2. Only PHP-CS-Fixer fixes in CI. PHP_CodeSniffer reports; `phpcbf` is a local target only.
-3. Conflict test: the Makefile check target runs PHP-CS-Fixer, then PHP_CodeSniffer, over the whole codebase, and the result must be clean. A sniff that breaks this is not added.
+2. Nothing writes files in CI. PHP-CS-Fixer runs in dry-run mode in CI, PHP_CodeSniffer reports, and `phpcbf` runs only from the local `fix` target (D26).
+3. Conflict test: the Makefile `check` target runs PHP-CS-Fixer, then PHP_CodeSniffer, over the whole codebase, and both must report nothing. A sniff that makes `check` unsatisfiable is not added.
 
 `DisallowMixedTypeHint` complements D19: framework `mixed` is handled with inline assertions, and project code may not declare `mixed` itself.
 
@@ -111,9 +111,9 @@ Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framewor
 
 ## 6. CI
 
-GitHub Actions runs on every pull request (D10). Each job calls a Makefile target, so CI and local runs execute the same commands (D8, D23).
+GitHub Actions runs on every pull request (D10). CI calls the Makefile targets `check` and `test`, so CI and local runs execute the same commands (D8, D23, D26).
 
-- **Backend, from the first commit:** PHPStan, PHP-CS-Fixer check, PHP_CodeSniffer (report only), Rector `--dry-run`, unit tests.
+- **Backend, from the first commit:** `make check` (PHP-CS-Fixer dry-run, PHP_CodeSniffer, PHPStan, Rector dry-run) and `make test` (unit tests).
 - **Backend, added with the first integration test:** integration tests against the PostGIS + h3-pg service container (D24).
 - **Client, added when `/app` is scaffolded:** very_good_analysis, dart format check, flutter_test.
 
@@ -123,7 +123,17 @@ GitHub Actions runs on every pull request (D10). Each job calls a Makefile targe
 
 No schema. Configuration files, one per tool, committed to the repository (D4).
 
-Makefile targets are the contract between local runs and CI (D23). The check target runs PHP-CS-Fixer before PHP_CodeSniffer (D25). Target names are not fixed yet (open item 1).
+Makefile targets are the contract between local runs and CI (D23, D26). Three targets:
+
+| Target | Writes files | Tools, in run order | Run by |
+|---|---|---|---|
+| `check` | No | PHP-CS-Fixer (`--dry-run`), PHP_CodeSniffer, PHPStan, Rector (`--dry-run`) | CI, local |
+| `fix` | Yes | Rector, PHP-CS-Fixer, phpcbf | local only |
+| `test` | No | PHPUnit, unit suite. Integration suite added with D24 | CI, local |
+
+- Any finding from a `check` tool fails the target. Make stops at the first failing tool, so later tools report only after earlier ones pass.
+- No targets exist for `/app` until it is scaffolded (D26).
+- Where the targets run (host or container) is open item 1.
 
 ---
 
@@ -154,5 +164,5 @@ Makefile targets are the contract between local runs and CI (D23). The check tar
 
 ## 11. Open items
 
-1. **Makefile target names.** E.g. `check`, `fix`, `test`. Not fixed.
+1. **Where the Makefile targets run.** On the host, using the PHP 8.5 and Composer installed on the developer machine and the CI runner, or inside a container through docker compose. Not decided. It also decides how integration tests reach their database: the PostGIS container runs under docker compose locally (D16), and `4-deployment-shape` describes compose services for the app, worker and rabbitmq only. Whether the app image carries the dev dependencies these tools need is not decided either.
 2. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).
