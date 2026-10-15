@@ -258,7 +258,7 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Trade-off accepted:** two configs that can disagree on formatting. The PHP_CodeSniffer standard must not contradict PHP-CS-Fixer output, or the two tools fight over the same lines.
 
-**Status:** Settled. The PHP_CodeSniffer standard is an open item in the design.
+**Status:** Settled. The PHP_CodeSniffer standard is chosen in D25.
 
 ---
 
@@ -300,8 +300,33 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 ---
 
+## D25 — PHP_CodeSniffer standard: curated Slevomat sniffs, no formatting
+
+**Resolves:** the standard left open in D21.
+
+**Decision:** Slevomat Coding Standard, with sniffs enabled one by one and no inherited base standard. The ruleset holds only non-formatting sniffs (types, complexity, class and function structure, unused code, exceptions, `==`). The list is in the design. Ownership: anything PHP-CS-Fixer can fix belongs to PHP-CS-Fixer. CI runs PHP_CodeSniffer report-only; `phpcbf` is a local Makefile target. The check target runs PHP-CS-Fixer first, then PHP_CodeSniffer, and must come out clean; a sniff that breaks this is not added.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Doctrine Coding Standard | Contradicts `@Symfony` (D20) directly: Doctrine forbids Yoda comparisons that `@Symfony` requires, and writes `! $x` where `@Symfony` writes `!$x`. Adopting it means adopting Doctrine style, reversing D20. |
+| PSR-12 or PER-CS | Already covered by `@Symfony`. Duplicate reports, nothing new. |
+| Third-party Symfony PHPCS standards | Duplicate `@Symfony` formatting, for the same reason. |
+| All Slevomat sniffs | Not possible: several are mutually exclusive (e.g. `RequireYodaComparison` and `DisallowYodaComparison`). |
+| Switching to ECS (D21's option A) to avoid choosing | Reconsidered on 2026-10-15 and kept out. ECS changes where the sniffs are configured, not which are needed: Slevomat is not bundled, and contradictions still have to be resolved by hand. |
+
+**Rationale:** PHP_CodeSniffer earns its place in D21 only by checking what PHP-CS-Fixer, PHPStan and Rector do not: native type coverage, cognitive complexity, class structure and logic smells. Keeping formatting out of the ruleset removes the conflict D21 accepted as a trade-off. Report-only in CI means the only fixer that can disagree with PHP-CS-Fixer never runs there.
+
+**Trade-off accepted:** a curated list is maintained by hand. Each sniff is read before it is enabled, which fits the learning goal (D2).
+
+**Assumption, falsifiable:** `Classes.RequireAbstractOrFinal` is compatible with Doctrine entities. Checked before the sniff covers `src/Entity`; if it is not, entities are excluded from that sniff.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
-- PHP_CodeSniffer standard and its overlap with PHP-CS-Fixer (design Open item 1; D21).
-- Makefile target names (design Open item 2; D23).
-- h3-pg version for the test image (design Open item 3; D24).
+- Makefile target names (design Open item 1; D23).
+- h3-pg version for the test image (design Open item 2; D24).

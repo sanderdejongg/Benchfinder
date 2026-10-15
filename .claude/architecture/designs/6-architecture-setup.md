@@ -53,8 +53,30 @@ Four standalone tools, each with its own committed config (D4). No ECS wrapper (
 |---|---|---|
 | PHPStan | Static analysis | Level `max`. No extensions, no `bleedingEdge`, no baseline (D19, provisional). |
 | PHP-CS-Fixer | Formatting (fixes) | `@Symfony`, `@Symfony:risky`, the PHP migration set matching PHP 8.5, `declare_strict_types` on (D20). |
-| PHP_CodeSniffer | Coding-standard sniffs (reports, `phpcbf` fixes) | Standard not chosen (open item 1). Must not contradict PHP-CS-Fixer output (D21). |
+| PHP_CodeSniffer | Non-formatting sniffs: types, complexity, structure | Slevomat Coding Standard, curated list below, no formatting sniffs. Report-only in CI; `phpcbf` runs only from a local Makefile target (D25). |
 | Rector | Automated upgrades and idiom changes | `withPhpSets()`, `withComposerBased(symfony, doctrine, phpunit)`, prepared sets `deadCode`, `codeQuality`, `typeDeclarations`, `earlyReturn`. CI runs `--dry-run` (D22). |
+
+### PHP_CodeSniffer sniffs (D25)
+
+Slevomat Coding Standard (`slevomat/coding-standard`), sniffs enabled one by one. No base standard is inherited.
+
+| Area | Sniffs (`SlevomatCodingStandard.*`) |
+|---|---|
+| Types | `TypeHints.ParameterTypeHint`, `TypeHints.PropertyTypeHint`, `TypeHints.ReturnTypeHint`, `TypeHints.DisallowMixedTypeHint` |
+| Complexity | `Complexity.Cognitive` |
+| Classes | `Classes.RequireConstructorPropertyPromotion`, `Classes.ForbiddenPublicProperty`, `Classes.RequireAbstractOrFinal` (Doctrine entity compatibility checked before it covers `src/Entity`) |
+| Functions | `Functions.StaticClosure`, `Functions.UnusedParameter`, `Functions.DisallowEmptyFunction` |
+| Variables | `Variables.UnusedVariable`, `Variables.UselessVariable` |
+| Exceptions | `Exceptions.DeadCatch`, `Exceptions.ReferenceThrowableOnly`, `Exceptions.RequireNonCapturingCatch` |
+| Operators | `Operators.DisallowEqualOperators` |
+
+Ownership rules between PHP-CS-Fixer and PHP_CodeSniffer:
+
+1. Anything PHP-CS-Fixer can fix is owned by PHP-CS-Fixer. No whitespace, brace, import-ordering or Yoda sniffs in the PHP_CodeSniffer ruleset.
+2. Only PHP-CS-Fixer fixes in CI. PHP_CodeSniffer reports; `phpcbf` is a local target only.
+3. Conflict test: the Makefile check target runs PHP-CS-Fixer, then PHP_CodeSniffer, over the whole codebase, and the result must be clean. A sniff that breaks this is not added.
+
+`DisallowMixedTypeHint` complements D19: framework `mixed` is handled with inline assertions, and project code may not declare `mixed` itself.
 
 Starting permissive was considered and set aside (D3, superseded). The principle in D2 is that stricter tooling teaches more.
 
@@ -91,7 +113,7 @@ Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framewor
 
 GitHub Actions runs on every pull request (D10). Each job calls a Makefile target, so CI and local runs execute the same commands (D8, D23).
 
-- **Backend, from the first commit:** PHPStan, PHP-CS-Fixer check, PHP_CodeSniffer, Rector `--dry-run`, unit tests.
+- **Backend, from the first commit:** PHPStan, PHP-CS-Fixer check, PHP_CodeSniffer (report only), Rector `--dry-run`, unit tests.
 - **Backend, added with the first integration test:** integration tests against the PostGIS + h3-pg service container (D24).
 - **Client, added when `/app` is scaffolded:** very_good_analysis, dart format check, flutter_test.
 
@@ -101,7 +123,7 @@ GitHub Actions runs on every pull request (D10). Each job calls a Makefile targe
 
 No schema. Configuration files, one per tool, committed to the repository (D4).
 
-Makefile targets are the contract between local runs and CI (D23). Target names are not fixed yet (open item 2).
+Makefile targets are the contract between local runs and CI (D23). The check target runs PHP-CS-Fixer before PHP_CodeSniffer (D25). Target names are not fixed yet (open item 1).
 
 ---
 
@@ -132,6 +154,5 @@ Makefile targets are the contract between local runs and CI (D23). Target names 
 
 ## 11. Open items
 
-1. **PHP_CodeSniffer standard.** Which standard and sniffs, and how formatting overlap with PHP-CS-Fixer is avoided (D21).
-2. **Makefile target names.** E.g. `check`, `fix`, `test`. Not fixed.
-3. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).
+1. **Makefile target names.** E.g. `check`, `fix`, `test`. Not fixed.
+2. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).
