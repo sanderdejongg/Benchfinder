@@ -16,7 +16,8 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 
 - **Strict by default.** Stricter tooling over minimal defaults, in both toolchains (D2, D17).
 - **One entry point.** The root Makefile holds the backend targets. CI runs the same targets as a local run (D8, D23). Client targets are added when `/app` is scaffolded, which is when the entry point covers both toolchains (D26).
-- **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17) and h3-pg version as the managed instance (D24, `4-deployment-shape` D17).
+- **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17) and h3-pg version as the managed instance (D24, `4-deployment-shape` D17). The h3-pg version is pinned once it is read from the instance (open item 1).
+- **Local PHP matches production.** Locally, the tools run inside the app container, on the image's PHP (D28).
 
 ---
 
@@ -44,6 +45,13 @@ Doc naming: numeric topic slugs (`2-nearby-search`, children `1-1-…`). The tra
 ### Stack
 
 PHP 8.5 and the latest stable Symfony 8.x minor at scaffold time (D18). Symfony on FrankenPHP, Doctrine with jsor/doctrine-postgis, Symfony Messenger on RabbitMQ, Symfony Scheduler, Symfony Console. Chosen as part of the stack for learning value, with the newer parts of Symfony as the explicit learning target (D13).
+
+### Docker setup (D28)
+
+- Starts from the official Symfony Docker template for FrankenPHP (`dunglas/symfony-docker`).
+- The Dockerfile has a dev build, carrying the dev dependencies the tools need, and a production build.
+- A dev-only docker compose `database` service, built from the PostGIS + h3-pg Dockerfile in the repository, is added with the first Doctrine entity. Local integration tests use it.
+- Production compose services are defined in `4-deployment-shape`. The dev-only services are not part of the deployment.
 
 ### Static analysis and formatting
 
@@ -85,7 +93,7 @@ Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framewor
 ### Testing
 
 - **PHPUnit**, the Symfony default (D15).
-- **Integration tests against a real database.** A PostGIS container with h3-pg runs under docker compose locally, and as a GitHub Actions service container in CI (D16). The image is built from a Dockerfile in the repository and published to GHCR, since no official PostGIS image ships h3-pg and service containers need a prebuilt image (D24).
+- **Integration tests against a real database.** A PostGIS container with h3-pg runs as the dev-only `database` service under docker compose locally (D16, D28), and as a GitHub Actions service container in CI (D16). The image is built from a Dockerfile in the repository, since no official PostGIS image ships h3-pg. It is published to GHCR together with the CI database job, because service containers need a prebuilt image (D24).
 - **Per-test rollback** with dama/doctrine-test-bundle, so each test runs in a transaction that is rolled back (D16).
 - **Messenger's in-memory transport in tests:** dispatched messages are captured and asserted without a broker. Handler tests invoke the handler directly, or run the worker once (D16).
 - **Overpass fixtures**: golden JSON responses, served through Symfony's MockHttpClient (D16).
@@ -111,7 +119,7 @@ Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framewor
 
 ## 6. CI
 
-GitHub Actions runs on every pull request (D10). CI calls the Makefile targets `check` and `test`, so CI and local runs execute the same commands (D8, D23, D26).
+GitHub Actions runs on every pull request (D10). CI calls the Makefile targets `check` and `test`, so CI and local runs execute the same commands (D8, D23, D26). The targets run directly on the runner, with PHP 8.5 installed by `setup-php`; its PHP extensions are kept in line with the Dockerfile by hand (D28).
 
 - **Backend, from the first commit:** `make check` (PHP-CS-Fixer dry-run, PHP_CodeSniffer, PHPStan, Rector dry-run) and `make test` (unit tests).
 - **Backend, added with the first integration test:** integration tests against the PostGIS + h3-pg service container (D24).
@@ -133,13 +141,13 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 
 - Any finding from a `check` tool fails the target. Make stops at the first failing tool, so later tools report only after earlier ones pass.
 - No targets exist for `/app` until it is scaffolded (D26).
-- Where the targets run (host or container) is open item 1.
+- Where the targets run (D28): one Makefile variable, `EXEC`, holds the command prefix. Locally it is the docker compose exec command for the app container. In CI it is empty, so the tools run directly on the runner. Target bodies are the same in both places.
 
 ---
 
 ## 8. Dependencies
 
-- `4-deployment-shape`: GitHub Actions is the CI platform. Scheduled jobs run on Symfony Scheduler instead. Postgres 17 Standard Edition and its h3-pg version fix the test image (D17 there).
+- `4-deployment-shape`: GitHub Actions is the CI platform. Scheduled jobs run on Symfony Scheduler instead. Postgres 17 Standard Edition and its h3-pg version fix the test image (D17 there). It defines the production compose services; the dev-only `database` service is defined here (D28).
 - `2-nearby-search`: the repository seam is what makes service-layer unit testing possible.
 - `3-visitor-identity`, `1-1-h3-grid-freshness`: test approach for database-backed features.
 - `7-flutter-client`: client test and lint tooling.
@@ -151,7 +159,8 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 - **Lint and static-analysis ratchets.** None. The analysers start at their strictest level (D17), so there is no later tightening step.
 - **PHPStan extensions and `bleedingEdge`.** Left out for now (D19). Not a ratchet: level stays at max; this is about framework type knowledge. Revisit point: the first merged Doctrine entity or repository class under `backend/src/` (D27). That merge is a latest point for the review, not an earliest one.
 - **Pre-commit hook.** Not built. The Makefile is the entry point (D23); nothing yet needs a hook on top.
-- **CI database job and the PostGIS + h3-pg image.** Added with the first integration test, not before (D24).
+- **CI database job and publishing the PostGIS + h3-pg image to GHCR.** Added with the first integration test, not before (D24). The Dockerfile itself arrives earlier, with the first Doctrine entity, for the local `database` service (D28).
+- **Dev-only `database` service.** Added with the first Doctrine entity, not before (D28).
 
 ---
 
@@ -164,6 +173,5 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 
 ## 11. Open items
 
-1. **Where the Makefile targets run.** On the host, using the PHP 8.5 and Composer installed on the developer machine and the CI runner, or inside a container through docker compose. Not decided. It also decides how integration tests reach their database: the PostGIS container runs under docker compose locally (D16), and `4-deployment-shape` describes compose services for the app, worker and rabbitmq only. Whether the app image carries the dev dependencies these tools need is not decided either.
-2. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).
-3. **Trigger for phpstan-phpunit and the strictness extensions.** D27 sets the review point for phpstan-doctrine and phpstan-symfony. phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` are not given a trigger of their own. Whether they need one is open.
+1. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).
+2. **Trigger for phpstan-phpunit and the strictness extensions.** D27 sets the review point for phpstan-doctrine and phpstan-symfony. phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` are not given a trigger of their own. Whether they need one is open.

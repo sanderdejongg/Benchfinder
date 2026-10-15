@@ -362,7 +362,7 @@ Clarification of D25: CI never writes files. "Only PHP-CS-Fixer fixes in CI" mea
 
 **Assumption, falsifiable:** each tool in `check` exits non-zero on findings, so a finding fails the target. Checked when the tools are first installed. A tool that exits zero on findings needs an explicit check in the target.
 
-**Status:** Settled for target names and contents. Where the targets run is design Open item 1.
+**Status:** Settled for target names and contents. Where the targets run is settled by D28.
 
 ---
 
@@ -389,8 +389,39 @@ D19's decision is unchanged and remains Provisional. This decision adds only its
 
 ---
 
+## D28 — Targets run in the app container locally and directly on the CI runner; dev setup from the Symfony Docker template
+
+**Resolves:** where the Makefile targets run, left open in D26.
+
+**Decision:**
+
+- The backend's Docker setup starts from the official Symfony Docker template for FrankenPHP (`dunglas/symfony-docker`). Its Dockerfile has a dev build, which carries the dev dependencies the tools need, and a production build.
+- Locally, every Makefile target runs inside the app container through docker compose. PHP 8.5 and its extensions are the image's, so nothing is installed on the developer machine.
+- In CI, the same targets run directly on the GitHub runner, with PHP 8.5 installed by the `setup-php` action.
+- One Makefile variable (`EXEC`) holds the prefix: the docker compose exec command locally, empty in CI. The target bodies are identical in both places (D8).
+- A dev-only `database` service is added to docker compose, built from the PostGIS + h3-pg Dockerfile in the repository (D24). It is added with the first Doctrine entity, not before. Local integration tests use it.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Host everywhere: PHP 8.5 and Composer installed on the developer machine | The local PHP and extensions drift from the production image, and the machine needs its own PHP install to maintain. |
+| Container everywhere, CI included | CI builds the image on every pull request, which makes every run slower. Not worth it while the static checks and unit tests need no extension that `setup-php` cannot install. |
+| A hand-written Docker setup instead of the template | Rebuilds what the template already gets right. The template is the standard FrankenPHP setup for Symfony, which is itself the learning value (D13). |
+
+**Rationale:** Recommended in discussion. The container keeps local runs on the production PHP. The runner keeps CI fast. The `EXEC` variable keeps D8's "CI runs the same commands" true at the level of the targets. The dev-only database closes a gap: D16 assumed a PostGIS container under docker compose locally, and `4-deployment-shape` defines no such service.
+
+**Trade-off accepted:** CI's PHP is not the production image. The PHP extensions installed by `setup-php` must be kept in line with the Dockerfile by hand.
+
+**Assumption, falsifiable:** every PHP extension the checks and unit tests need can be installed by `setup-php` at the version the image uses. If one cannot, CI moves to running inside the image (the second rejected option).
+
+**Relation to D24:** D24 defers the CI database job and publishing the image to GHCR until the first integration test. The Dockerfile itself is now needed earlier, for the local `database` service, from the first Doctrine entity. D24 is otherwise unchanged.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
-- Where the Makefile targets run, and how integration tests reach their database (design Open item 1; D26).
-- h3-pg version for the test image (design Open item 2; D24).
-- Trigger for phpstan-phpunit, and whether the strictness extensions need a trigger of their own (design Open item 3; D27).
+- h3-pg version for the test image (design Open item 1; D24).
+- Trigger for phpstan-phpunit, and whether the strictness extensions need a trigger of their own (design Open item 2; D27).

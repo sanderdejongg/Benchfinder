@@ -46,6 +46,7 @@ Scope notes:
 - The **worker** container runs `messenger:consume`. It executes per-cell ingestion jobs (`1-2-cell-ingestion`) and the Symfony Scheduler, which runs the visitor purge (`3-visitor-identity` D14).
 - The **rabbitmq** container is the AMQP broker for Messenger (`1-4-dispatch-mechanism` D2).
 - The bulk Geofabrik backfill is a Symfony Console command, separate from the per-cell path (decision log D6, D9).
+- These are the production services. Local development adds a dev-only `database` service (PostGIS + h3-pg) and the template's dev build; both are defined in `6-architecture-setup` D28 and are not deployed.
 
 ---
 
