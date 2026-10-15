@@ -1,0 +1,3 @@
+# Command prefix for running tools in the app container (6-architecture-setup D28).
+# Run from the repository root. CI overrides it with an empty value: make EXEC= ...
+EXEC ?= docker compose --project-directory backend exec -T php
