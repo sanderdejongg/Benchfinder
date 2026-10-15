@@ -6,10 +6,10 @@ Benchfinder is a no-login mobile app that answers "where can I sit?": it shows p
 - Backend: Symfony on FrankenPHP, Mercure (embedded hub) for push, Doctrine with jsor/doctrine-postgis, PostgreSQL + PostGIS + h3-pg, Symfony Messenger on RabbitMQ, Symfony Scheduler, Symfony Console.
 - Client: Flutter (iOS + Android), Riverpod, flutter_map, geolocator, flutter_secure_storage.
 - Data: OSM via Overpass, ingested into our own PostGIS. Overpass is never on the read path.
-- Hosting: one DigitalOcean Droplet running docker compose (FrankenPHP, messenger worker, RabbitMQ), plus DigitalOcean Managed Postgres in the same region and VPC.
+- Hosting: one DigitalOcean Droplet running docker compose (FrankenPHP, messenger worker, RabbitMQ), plus DigitalOcean Managed Postgres 17, Standard Edition (the newest version for which DigitalOcean offers h3-pg), in the same region and VPC.
 
 ## Monorepo
-- `/backend` Symfony (later phase)
+- `/backend` Symfony (PHP 8.5, Symfony 8.x)
 - `/app` Flutter (later phase)
 - `/.claude/architecture/designs/` current state of each topic
 - `/.claude/architecture/decisions/` why, and what was rejected (append-only)
@@ -40,6 +40,8 @@ Nearby search (`2-nearby-search`) comes before the ingestion pipeline (`1-ingest
 - Mercure (SSE) for push: one event per job, invalidation signal only (`5-realtime-push` D5, D12, D14).
 - Visitor ID is not logged (access-log filter required, see `3-visitor-identity`). The 12-month purge runs on Symfony Scheduler (`3-visitor-identity` D13–D14).
 - flutter_map over google_maps_flutter (`7-flutter-client` D1).
+- Backend tooling: PHPStan at max, PHP-CS-Fixer and PHP_CodeSniffer as separate tools (no ECS), Rector, curated Slevomat sniffs with no formatting rules, one Makefile as the entry point (`6-architecture-setup` D18–D23, D25). CI database job waits for the first integration test (D24).
+- Postgres 17 Standard Edition; Postgres 18 is blocked until DigitalOcean offers h3 for it (`4-deployment-shape` D17).
 
 ## Explicitly deferred (don't re-litigate)
 - Deterministic tiebreak in nearby results (`2-nearby-search` D5)

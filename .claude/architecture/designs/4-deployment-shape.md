@@ -1,6 +1,6 @@
 # Deployment Shape — Final Design
 
-**Issue:** [BEN-4](https://benchfinder.youtrack.cloud/issue/BEN-4)  **Status:** settled, not implemented; one pre-implementation check open  **Updated:** 2026-10-08
+**Issue:** [BEN-4](https://benchfinder.youtrack.cloud/issue/BEN-4)  **Status:** settled, not implemented  **Updated:** 2026-10-15
 
 ---
 
@@ -53,11 +53,13 @@ Scope notes:
 
 Managed, not self-hosted (D1).
 
-Hard filter: PostGIS and h3-pg (D2, D14). Also verify the `h3_postgis` extension.
+Hard filter: PostGIS, h3-pg and `h3_postgis` (D2, D14).
 
-**Chosen: DigitalOcean Managed Postgres** (D14). Same region and VPC as the Droplet, so the app and worker reach it on a private network.
+**Chosen: DigitalOcean Managed Postgres, Postgres 17, Standard Edition** (D14, D17). Same region and VPC as the Droplet, so the app and worker reach it on a private network.
 
-**Pre-implementation check, binary:** confirm h3-pg is available on the managed instance before provisioning. If it is not, switch provider (check Neon first) and keep the H3 design (`1-1-h3-grid-freshness`). This does not fork the design.
+**h3-pg availability: confirmed from provider documentation** (D17). DigitalOcean lists `h3` and `h3_postgis` for Standard Edition clusters on Postgres 14–17 only. Postgres 18 and every Advanced Edition version lack them. The documentation does not state the h3-pg version; read it from the provisioned instance (open item 1).
+
+Upgrade constraint: moving to Postgres 18 is blocked until DigitalOcean lists h3 for it. Neon and AWS RDS remain fallbacks with h3-pg if that becomes a problem.
 
 Trade-off accepted: DigitalOcean Managed Postgres does not offer Neon's branching. Testing destructive ingestion changes against a branch of real data is no longer a built-in option.
 
@@ -109,7 +111,7 @@ No schema. Compose services: app (FrankenPHP + embedded Mercure hub), worker (me
 - `1-4-dispatch-mechanism`: RabbitMQ and Messenger, both on the Droplet.
 - `3-visitor-identity`: the purge on Scheduler, and the access-log requirement.
 - `5-realtime-push`: the embedded hub and single-instance topology.
-- `6-architecture-setup`: CI on GitHub Actions, and the test database.
+- `6-architecture-setup`: CI on GitHub Actions, and the test database, which pins Postgres 17 and the instance's h3-pg version.
 
 ---
 
@@ -131,7 +133,7 @@ No schema. Compose services: app (FrankenPHP + embedded Mercure hub), worker (me
 
 ## 12. Open items
 
-1. **h3-pg availability on DigitalOcean Managed Postgres.** Pre-implementation check (section 4). Fallback: switch providers, starting with Neon. Also verify the `h3_postgis` extension.
+1. **h3-pg version on the provisioned instance.** Availability is confirmed from documentation (D17). After provisioning, read the installed versions of `h3` and `h3_postgis` (`pg_available_extensions`). The CI test image pins the same version (`6-architecture-setup` D24).
 2. **Droplet OS patching cadence.** Not decided.
 3. **RabbitMQ durability and backup.** Queue durability is set at the transport (`1-4-dispatch-mechanism`). Whether RabbitMQ state is backed up, and how, is not decided.
 4. **Droplet sizing.** Not decided. No load figures exist yet.

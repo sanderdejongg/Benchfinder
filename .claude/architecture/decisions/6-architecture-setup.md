@@ -2,7 +2,7 @@
 
 Decisions leading to `../designs/6-architecture-setup.md`.
 
-**Updated:** 2026-10-08
+**Updated:** 2026-10-15
 
 ---
 
@@ -86,7 +86,7 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Rationale:** A two-toolchain repository has two sets of invocations. One command means neither is forgotten, and it is the command CI runs, so local and CI behaviour cannot silently diverge.
 
-**Status:** Settled. Mechanism (hook or Makefile target) is an open item.
+**Status:** Settled. Mechanism resolved by D23 (Makefile).
 
 ---
 
@@ -193,12 +193,140 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Trade-off accepted:** day-one findings will be noisier than a permissive start would produce. Those findings are accepted, to be resolved as they appear rather than suppressed in bulk.
 
-**Status:** Settled. Rulesets and extensions are open items in the design.
+**Status:** Settled. PHPStan configuration in D19, PHP-CS-Fixer rules in D20, PHP_CodeSniffer added in D21, Rector sets in D22.
+
+---
+
+## D18 — PHP 8.5 and the latest stable Symfony 8.x
+
+**Decision:** PHP 8.5. Symfony at the latest stable 8.x minor at scaffold time.
+
+**Rationale:** The newer parts of Symfony are an explicit learning target (D13), so the newest stable release is the default. FrankenPHP supports PHP 8.5 (confirmed 2026-10-15). The PHP version also fixes the PHP-CS-Fixer migration set (D20) and the Rector PHP sets (D22).
+
+**Status:** Settled.
+
+---
+
+## D19 — PHPStan: level max only, no extensions, no baseline
+
+**Decision:** PHPStan at level `max` with no extensions (no phpstan-symfony, phpstan-doctrine, phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules) and no `bleedingEdge`. No baseline.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Level max plus the Symfony, Doctrine, PHPUnit, strict-rules and deprecation-rules extensions, with `bleedingEdge` (recommended in discussion) | Not taken for now. The user chose level max alone ("for now"); no further reason given. |
+| A baseline | Greenfield codebase: there is nothing to baseline, so a baseline would only hide new errors. |
+
+**Rationale:** User decision to start with the bare analyser.
+
+**Trade-off accepted:** without the Symfony and Doctrine extensions, PHPStan does not know framework return types. Calls such as container parameter lookups and query results resolve to `mixed`, which level max flags. These are handled with inline type assertions.
+
+**Status:** Provisional ("for now"). No revisit trigger agreed.
+
+---
+
+## D20 — PHP-CS-Fixer rule sets
+
+**Decision:** `@Symfony`, `@Symfony:risky`, the PHP migration set matching PHP 8.5 (D18), and `declare_strict_types` on.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Adding `@PER-CS` | `@Symfony` already covers it. |
+
+**Rationale:** The Symfony sets match the framework's own conventions. The risky set and strict types apply D2.
+
+**Status:** Settled.
+
+---
+
+## D21 — PHP_CodeSniffer as a separate tool alongside PHP-CS-Fixer; no ECS
+
+**Decision:** PHP-CS-Fixer and PHP_CodeSniffer run as two standalone tools, each with its own config. ECS is not used.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| ECS only, running the PHP-CS-Fixer sets and CodeSniffer sniffs in one tool (recommended in discussion) | Not chosen. One tool hides each underlying tool's native config and CLI. |
+| ECS for the PHP-CS-Fixer rules, standalone PHP_CodeSniffer for the sniffs | Reduces ECS to a wrapper around PHP-CS-Fixer, keeping its extra layer without its benefit (running both rule families together). |
+| ECS plus standalone PHP-CS-Fixer and PHP_CodeSniffer | The same rules run twice, with a risk of conflicting fixes. |
+
+**Rationale:** User decision. The case for this option made in discussion: each tool is learned on its own terms, with its own configuration and CLI, which fits the project's learning goal.
+
+**Trade-off accepted:** two configs that can disagree on formatting. The PHP_CodeSniffer standard must not contradict PHP-CS-Fixer output, or the two tools fight over the same lines.
+
+**Status:** Settled. The PHP_CodeSniffer standard is chosen in D25.
+
+---
+
+## D22 — Rector sets
+
+**Decision:** `withPhpSets()`, `withComposerBased(symfony: true, doctrine: true, phpunit: true)`, and the prepared sets `deadCode`, `codeQuality`, `typeDeclarations` and `earlyReturn`. CI runs Rector with `--dry-run`.
+
+**Rationale:** The PHP sets follow the pinned PHP version (D18). The Composer-based sets follow the installed framework versions, so upgrades surface new idioms automatically. The prepared sets apply D2. `--dry-run` in CI reports changes without making them.
+
+**Status:** Settled.
+
+---
+
+## D23 — The single entry point is a Makefile; no pre-commit hook
+
+**Resolves:** the mechanism left open in D8.
+
+**Decision:** A root Makefile holds the targets for both toolchains. CI calls the same targets.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Pre-commit hook | Nothing needs it yet. The project rules say not to build what is not needed now. |
+
+**Rationale:** One file both a developer and CI invoke satisfies D8 directly.
+
+**Status:** Settled. Target names are an open item in the design.
+
+---
+
+## D24 — CI database job added with the first integration test
+
+**Decision:** The first CI workflow runs static analysis and unit tests only. The integration-test job, and the PostGIS + h3-pg image it needs, are added together with the first integration test. The image is built from a Dockerfile in the repository and published to GHCR. It pins Postgres 17 and the h3-pg version found on the managed instance (`4-deployment-shape` D17).
+
+**Rationale:** No official PostGIS image ships h3-pg, and GitHub Actions service containers need a prebuilt image, so the test database costs a Dockerfile plus a publishing workflow. Building it before any test uses it is speculative. This sequences D16; it does not change it.
+
+**Status:** Settled.
+
+---
+
+## D25 — PHP_CodeSniffer standard: curated Slevomat sniffs, no formatting
+
+**Resolves:** the standard left open in D21.
+
+**Decision:** Slevomat Coding Standard, with sniffs enabled one by one and no inherited base standard. The ruleset holds only non-formatting sniffs (types, complexity, class and function structure, unused code, exceptions, `==`). The list is in the design. Ownership: anything PHP-CS-Fixer can fix belongs to PHP-CS-Fixer. CI runs PHP_CodeSniffer report-only; `phpcbf` is a local Makefile target. The check target runs PHP-CS-Fixer first, then PHP_CodeSniffer, and must come out clean; a sniff that breaks this is not added.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Doctrine Coding Standard | Contradicts `@Symfony` (D20) directly: Doctrine forbids Yoda comparisons that `@Symfony` requires, and writes `! $x` where `@Symfony` writes `!$x`. Adopting it means adopting Doctrine style, reversing D20. |
+| PSR-12 or PER-CS | Already covered by `@Symfony`. Duplicate reports, nothing new. |
+| Third-party Symfony PHPCS standards | Duplicate `@Symfony` formatting, for the same reason. |
+| All Slevomat sniffs | Not possible: several are mutually exclusive (e.g. `RequireYodaComparison` and `DisallowYodaComparison`). |
+| Switching to ECS (D21's option A) to avoid choosing | Reconsidered on 2026-10-15 and kept out. ECS changes where the sniffs are configured, not which are needed: Slevomat is not bundled, and contradictions still have to be resolved by hand. |
+
+**Rationale:** PHP_CodeSniffer earns its place in D21 only by checking what PHP-CS-Fixer, PHPStan and Rector do not: native type coverage, cognitive complexity, class structure and logic smells. Keeping formatting out of the ruleset removes the conflict D21 accepted as a trade-off. Report-only in CI means the only fixer that can disagree with PHP-CS-Fixer never runs there.
+
+**Trade-off accepted:** a curated list is maintained by hand. Each sniff is read before it is enabled, which fits the learning goal (D2).
+
+**Assumption, falsifiable:** `Classes.RequireAbstractOrFinal` is compatible with Doctrine entities. Checked before the sniff covers `src/Entity`; if it is not, entities are excluded from that sniff.
+
+**Status:** Settled.
 
 ---
 
 ## Unresolved at time of writing
 
-- PHPStan extensions and baseline policy at maximum level (design Open item 1).
-- PHP-CS-Fixer and Rector rule sets (design Open items 2 and 3).
-- Pre-commit hook or Makefile target (design Open item 4).
+- Makefile target names (design Open item 1; D23).
+- h3-pg version for the test image (design Open item 2; D24).

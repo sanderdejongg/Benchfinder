@@ -1,6 +1,6 @@
 # H3 Grid & Freshness Tracking — Final Design
 
-**Issue:** [BEN-8](https://benchfinder.youtrack.cloud/issue/BEN-8)  **Status:** settled, not implemented; first build target within ingestion  **Updated:** 2026-10-08
+**Issue:** [BEN-8](https://benchfinder.youtrack.cloud/issue/BEN-8)  **Status:** settled, not implemented; first build target within ingestion  **Updated:** 2026-10-15
 
 **Parent:** `1-ingestion-pipeline`
 
@@ -89,7 +89,7 @@ Functions used (h3-pg, names as listed in the 2026-10-08 design discussion):
 - `h3_grid_disk(cell, 2)`: the 19-cell k=2 disk (`1-2-cell-ingestion` D9).
 - `h3_cell_to_parent(cell, 7)`: coarser grain on read, when needed. (On a res-8 cell, `h3_cell_to_parent(cell, 8)` is a no-op, so res 7 is the example.)
 
-The `h3_postgis` extension, shipped with h3-pg, provides the geometry and geography overloads. Verify it alongside provider support (`4-deployment-shape` open item 1).
+The `h3_postgis` extension, shipped with h3-pg, provides the geometry and geography overloads. Both are available on the chosen provider (`4-deployment-shape` D17; D6 here).
 
 ---
 
@@ -98,7 +98,7 @@ The `h3_postgis` extension, shipped with h3-pg, provides the geometry and geogra
 - `1-ingestion-pipeline`: parent.
 - `1-2-cell-ingestion`: consumes the freshness check and the disk function.
 - `2-nearby-search`: the search path does not use `h3_index` (D3 here).
-- `4-deployment-shape`: the database provider must offer h3-pg (pre-implementation check).
+- `4-deployment-shape`: the database provider, Postgres 17 Standard Edition, which offers h3-pg (D17 there).
 - `6-architecture-setup`: freshness logic is tested against PostGIS with h3-pg, not as pure functions.
 
 ---
@@ -117,4 +117,4 @@ None.
 
 ## Open items
 
-1. **h3-pg availability on the chosen provider.** Verify before provisioning. If h3-pg is unavailable on DigitalOcean Managed Postgres, switch providers (checking Neon first) and keep this design. See `4-deployment-shape`.
+None. Provider availability of h3-pg is resolved (`4-deployment-shape` D17; D6 here).
