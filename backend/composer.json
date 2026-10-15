@@ -1,8 +1,8 @@
 {
-    "name": "symfony/skeleton",
+    "name": "benchfinder/backend",
     "type": "project",
-    "license": "MIT",
-    "description": "A minimal Symfony project recommended to create bare bones applications",
+    "license": "proprietary",
+    "description": "Benchfinder backend: nearby public bench search API",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {

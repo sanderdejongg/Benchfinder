@@ -33,8 +33,6 @@
 		subscriber_jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
 		# Allow anonymous subscribers (double-check that it's what you want)
 		anonymous
-		# Enable the subscription API (double-check that it's what you want)
-		subscriptions
 		# Extra directives
 		{$MERCURE_EXTRA_DIRECTIVES}
 	}
