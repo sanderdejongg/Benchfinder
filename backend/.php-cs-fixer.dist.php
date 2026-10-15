@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $finder = (new PhpCsFixer\Finder())
     ->in(__DIR__)
+    ->append([__DIR__.'/bin/console'])
     ->exclude('var')
     ->notPath([
         'config/bundles.php',

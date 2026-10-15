@@ -1,7 +1,7 @@
 parameters:
     level: max
     paths:
-        - bin
+        - bin/console
         - config
         - public
         - src
