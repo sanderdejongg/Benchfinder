@@ -139,7 +139,7 @@ Makefile targets are the contract between local runs and CI (D23). The check tar
 ## 9. Explicitly deferred
 
 - **Lint and static-analysis ratchets.** None. The analysers start at their strictest level (D17), so there is no later tightening step.
-- **PHPStan extensions and `bleedingEdge`.** Left out for now (D19). Not a ratchet: level stays at max; this is about framework type knowledge. Revisit point: the first merged Doctrine entity or repository class under `backend/src/`, proposed in D27. That merge is a latest point for the review, not an earliest one.
+- **PHPStan extensions and `bleedingEdge`.** Left out for now (D19). Not a ratchet: level stays at max; this is about framework type knowledge. Revisit point: the first merged Doctrine entity or repository class under `backend/src/` (D27). That merge is a latest point for the review, not an earliest one.
 - **Pre-commit hook.** Not built. The Makefile is the entry point (D23); nothing yet needs a hook on top.
 - **CI database job and the PostGIS + h3-pg image.** Added with the first integration test, not before (D24).
 

@@ -222,7 +222,7 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Trade-off accepted:** without the Symfony and Doctrine extensions, PHPStan does not know framework return types. Calls such as container parameter lookups and query results resolve to `mixed`, which level max flags. These are handled with inline type assertions.
 
-**Status:** Provisional ("for now"). No revisit trigger agreed. Revisit point proposed in D27 (2026-10-15); the decision itself is unchanged.
+**Status:** Provisional ("for now"). Revisit point set by D27 (2026-10-15).
 
 ---
 
@@ -328,7 +328,7 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 ## D27 — Revisit point for D19: the first Doctrine entity or repository
 
-**Proposed in the change that adds this entry (2026-10-15).** D19 is unchanged and remains Provisional. This decision adds only the revisit point.
+D19's decision is unchanged and remains Provisional. This decision adds only its revisit point.
 
 **Decision:** D19 is revisited no later than the first merged change that adds a Doctrine entity or a repository class under `backend/src/`. That change is the review point. The owner records the outcome in this log, either as a new decision or as a status note on D19. At the review, the owner decides whether to add phpstan-doctrine and phpstan-symfony, and whether to add or keep out the strictness extensions. This is a latest point, not an earliest one: a framework `mixed` need that appears earlier may reopen D19 earlier.
 
@@ -343,9 +343,9 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Rationale:** D19's stated cost is framework types. Doctrine repositories and query results are the types phpstan-doctrine covers, and there is nothing for it to type before the first entity or repository exists. That event is visible in git history. Symfony container typing (phpstan-symfony) can matter earlier, which is why the trigger is a latest point. The strictness extensions (strict-rules, deprecation-rules, bleedingEdge) are not about framework code. They are placed at the same review rather than given a trigger of their own, because no separate trigger has been argued for them.
 
-**Trade-off accepted:** the review can come after inline assertions already exist, and those assertions are its input. The trigger also fires for a repository that uses only native SQL through DBAL, as the KNN query in `2-nearby-search` D7 and D16 does. Whether phpstan-doctrine types raw DBAL result rows is not checked in this change. The review must check it before it adds the extension.
+**Trade-off accepted:** the review can come after inline assertions already exist, and those assertions are its input. The trigger also fires for a repository that uses only native SQL through DBAL. The KNN repository (`2-nearby-search` D7, D16) runs native SQL through DBAL, alongside ORM-mapped entities used for schema diffing (D16). Whether phpstan-doctrine types raw DBAL result rows is not checked in this change. The review must check it before it adds the extension.
 
-**Status:** Provisional. Proposed in this change. It becomes Settled when the owner merges the PR.
+**Status:** Settled.
 
 ---
 
