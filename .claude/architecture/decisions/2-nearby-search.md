@@ -314,9 +314,29 @@ Decisions leading to `../designs/2-nearby-search.md`.
 
 ---
 
+## D23 — Amenity booleans are nullable; null means the tag is absent
+
+**Resolves:** design open item 4 (nullability only).
+
+**Decision:** `has_backrest`, `is_covered` and `is_accessible` are nullable, in the `benches` columns and in the response. Each is `true`, `false` or `null`. `null` means OSM carries no usable tag for it, so the value is unknown.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Non-null, defaulting to `false` | A missing tag is reported as "no", which is often wrong. For accessibility it is actively misleading: a bench with no `wheelchair` tag is not known to be inaccessible. |
+
+**Rationale:** Recommended in the 2026-11-04 discussion and accepted. OSM often omits these tags. The response should say what the data says, and the client shows "unknown" for `null`.
+
+**Trade-off accepted:** the client handles three states per amenity instead of two (`7-flutter-client`).
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
 - Response on a KNN failure other than the timeout (for example connection loss), on dispatch failure (RabbitMQ unreachable) or on visitor-upsert failure: status and error codes not chosen (design open item 1). The timeout is settled by D21.
 - `Link` header scope on `200` (design Open item 2).
 - Scope of the freshness check, and therefore of `pending_cells` (design Open item 3).
-- Nullability of `has_backrest`, `is_covered` and `is_accessible`, null or `false` default (design open item 4). Must be decided before the first migration is written (D20).
+- Which OSM tag values map to `true`, `false` and `null` for the three amenity booleans (design open item 4). Nullability is settled by D23.
