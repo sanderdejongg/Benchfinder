@@ -68,7 +68,7 @@ The client re-calls the endpoint when the push arrives, or falls back to pull-to
 benches
   id                -- UUIDv7, generated in PHP (`2-nearby-search` D18)
   source            -- 'osm'
-  source_id         -- OSM node or way ID         ← upsert key with source
+  source_id         -- typed OSM ID: 'node/123', 'way/456', 'relation/789' (D8)  ← upsert key with source
   geog              -- PostGIS geography(Point)   ← GIST indexed, used by KNN
   h3_index          -- res 8; ingestion reconciliation only (1-1-h3-grid-freshness); added by the ingestion migration (`2-nearby-search` D20)
   has_backrest
@@ -78,7 +78,7 @@ benches
   ...timestamps
 ```
 
-Uniqueness on `(source, source_id)` makes the upsert idempotent (D3). The `polled_cells` table is defined in `1-1-h3-grid-freshness`.
+Uniqueness on `(source, source_id)` makes the upsert idempotent (D3). `source_id` carries the element type, because OSM node, way and relation IDs are separate number spaces (D8). The `polled_cells` table is defined in `1-1-h3-grid-freshness`.
 
 ---
 
@@ -104,6 +104,7 @@ Uniqueness on `(source, source_id)` makes the upsert idempotent (D3). The `polle
 
 - The cascade pre-warm sub-design is folded into `1-2-cell-ingestion` (single job, k=2 disk). Its decisions are recorded there as superseded entries (`1-2-cell-ingestion` D4, D5).
 - The in-process dispatch model is superseded by the messenger queue (`1-4-dispatch-mechanism` D1 superseded by D2).
+- `source_id` as the bare OSM node or way ID (D3): replaced by the typed reference, such as `node/123` (D8).
 
 ---
 

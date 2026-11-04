@@ -136,6 +136,7 @@ GET /benches/nearby?lat=<float>&lon=<float>
 - `pending_cells` is `[]` when every cell in play is fresh. Otherwise it lists the cold or stale res-8 cells (D14, D15).
 - No-results is `200` with `"benches": []`, never `404`.
 - `id` is a UUIDv7 string, generated in PHP (D18).
+- `has_backrest`, `is_covered` and `is_accessible` are `true`, `false` or `null`. `null` means OSM carries no usable tag, so the value is unknown (D23).
 - `distance_meters` is computed per row by `ST_Distance`.
 - Raw OSM tags are not exposed.
 - No `count` field.
@@ -186,4 +187,4 @@ The hub URL is the Mercure discovery link. Topic names are defined in `5-realtim
 1. **Failure responses.** The KNN timeout is settled (D21). Not chosen: the status and error code for a KNN failure other than the timeout, such as connection loss; a dispatch failure (RabbitMQ unreachable, so no ingestion job is queued); and a visitor-upsert failure, which sits against the never-reject rule for the visitor ID (`3-visitor-identity` D6, open item 1). The upsert is not in the first slice (D22).
 2. **`Link` header scope.** Whether the header is sent on every `200` or only when `pending_cells` is non-empty.
 3. **Scope of the freshness check.** Whether `pending_cells` lists only the request point's res-8 cell, or every cell the KNN results fall in. The plural field does not settle it. Shared with `1-2-cell-ingestion`. Under the wider reading, a client re-call can dispatch jobs for cells outside the job's disk, so fan-out is bounded only by the KNN result set. Resolve together with the re-call policy in `5-realtime-push` and `7-flutter-client`.
-4. **Unknown amenity booleans.** OSM often omits `backrest`, `covered` and wheelchair tags. Whether `has_backrest`, `is_covered` and `is_accessible` are nullable (null = unknown, in the column and the response) or default to `false` is not decided. It fixes the migration's column nullability (D20) and the response contract, so it must be decided before the first migration is written.
+4. **Amenity tag mapping.** The booleans are nullable (D23). Which OSM tag values map to `true`, `false` and `null` is not decided, for example `wheelchair=limited`, or a `backrest` value other than `yes` or `no`. The fixtures (D19) and ingestion both need the rule.

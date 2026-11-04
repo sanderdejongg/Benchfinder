@@ -2,7 +2,7 @@
 
 Decisions leading to `../designs/1-ingestion-pipeline.md`.
 
-**Updated:** 2026-10-08
+**Updated:** 2026-11-04
 
 Component-specific decisions live in the sub-design logs: `1-1-h3-grid-freshness`, `1-2-cell-ingestion`, `1-4-dispatch-mechanism`. This log holds the pipeline-wide decisions only.
 
@@ -43,7 +43,7 @@ Component-specific decisions live in the sub-design logs: `1-1-h3-grid-freshness
 
 **Rationale:** Re-ingesting a cell must always be safe. This property makes everything else tolerable: overlapping jobs, retries, a manual re-run, a partial failure mid-ingest. Without it, each of those becomes a duplicate-data bug. `4-deployment-shape` D8 ranks it above scheduling sophistication for the same reason.
 
-**Status:** Settled. Cited by `1-2-cell-ingestion` and `4-deployment-shape`.
+**Status:** Settled. Cited by `1-2-cell-ingestion` and `4-deployment-shape`. ⚠ Partly superseded by D8 (2026-11-04): the form of `source_id` only. The upsert on `(source, source_id)` stands.
 
 ---
 
@@ -100,6 +100,25 @@ Component-specific decisions live in the sub-design logs: `1-1-h3-grid-freshness
 **Rationale:** One Overpass call instead of up to 18 to 36 matters under Overpass rate limits. The single job also removes the need for a depth cap, since nothing re-dispatches. Holds only while `pending_cells` is limited to cells inside the job's disk (open item on `pending_cells` scope).
 
 **Trade-off accepted:** the push for the user's own cell waits for the whole disk to complete, rather than arriving as soon as the user's own cell is done.
+
+**Status:** Settled.
+
+---
+
+## D8 — `source_id` is the typed OSM reference, such as `node/123`
+
+**Decision:** For OSM benches, `source_id` holds the element type and ID together, written as OSM writes it: `node/123`, `way/456` or `relation/789`. The upsert key stays `(source, source_id)` (D3).
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| The bare numeric ID, as D3 stated it | OSM nodes, ways and relations have separate ID spaces, so node 123 and way 123 are different benches. The Overpass query fetches all three types (`nwr`, `1-2-cell-ingestion`). Under a bare ID, one bench silently overwrites the other. |
+| A separate `osm_type` column, keyed on `(source, osm_type, source_id)` | Typed, but it puts an OSM-specific column into a key meant to be source-agnostic. |
+
+**Rationale:** Recommended in the 2026-11-04 discussion and accepted. Found while preparing the first `benches` migration (`2-nearby-search` D20), whose unique constraint depends on it. The string form keeps the key at two columns and matches OSM's own notation.
+
+**Trade-off accepted:** `source_id` is a string, not an integer. The element type is recovered by splitting the string, when it is needed.
 
 **Status:** Settled.
 
