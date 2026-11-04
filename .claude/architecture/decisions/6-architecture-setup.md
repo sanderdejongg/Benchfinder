@@ -559,7 +559,7 @@ D19's decision is unchanged and remains Provisional. This decision adds only its
 
 ## D35 — The scaffold keeps only what the current code uses
 
-**Decision:** These template defaults are removed:
+**Decision:** These template and recipe defaults are removed:
 
 - **Sessions.** `framework.session`, its test mock, and `session.use_strict_mode`. The API has no logins and starts no sessions.
 - **The `intl` extension.** Nothing installed needs it. Symfony falls back to its polyfills.
@@ -569,6 +569,7 @@ D19's decision is unchanged and remains Provisional. This decision adds only its
 - **Dev hot reload** (`hot_reload`). It requires the Mercure hub (`5-realtime-push` D16) and reloads browser pages, which a JSON API does not need. The worker's `watch` setting, which restarts workers when PHP files change, stays.
 - **`merge=ours` on `composer.lock`.** No `merge.ours` driver is configured, so the line did nothing. With the driver configured, it would keep the local lock file and discard the other branch's dependency changes.
 - **The `php-http/discovery` plugin allowance.** No such package is installed.
+- **PHPUnit recipe leftovers.** `bin/phpunit`, since the Makefile calls `vendor/bin/phpunit` and the wrapper sat outside every tool's paths. `umask(0o000)` in `tests/bootstrap.php`, since the container runs as one user. The empty `<extensions>` element in `phpunit.dist.xml`.
 
 Also:
 
