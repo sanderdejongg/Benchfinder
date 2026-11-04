@@ -134,7 +134,7 @@ No schema. Compose services: app (FrankenPHP + embedded Mercure hub), worker (me
 
 ## 12. Open items
 
-1. **PostGIS and h3-pg versions on the provisioned instance.** Availability is confirmed from documentation (D17). After provisioning, read the installed versions of `postgis`, `h3` and `h3_postgis` (`pg_available_extensions`). The CI test image pins the same versions (`6-architecture-setup` D24). Until then the image pins are provisional (`6-architecture-setup` D37).
+1. **PostGIS and h3-pg versions on the provisioned instance.** Availability is confirmed from documentation (D17). After provisioning, read the installed versions of `postgis`, `h3` and `h3_postgis` (`pg_available_extensions`). `h3_postgis` also requires `postgis_raster`, which DigitalOcean lists as supported (`6-architecture-setup` D39). The CI test image pins the same versions (`6-architecture-setup` D24). Until then the image pins are provisional (`6-architecture-setup` D37).
 2. **Droplet OS patching cadence.** Not decided.
 3. **RabbitMQ durability and backup.** Queue durability is set at the transport (`1-4-dispatch-mechanism`). Whether RabbitMQ state is backed up, and how, is not decided.
 4. **Droplet sizing.** Not decided. No load figures exist yet.
