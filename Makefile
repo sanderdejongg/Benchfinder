@@ -6,9 +6,11 @@ EXEC ?= docker compose --project-directory backend exec -T php
 # `working-directory: backend` in CI (make -f ../Makefile EXEC= <target>).
 .PHONY: check fix test
 
+# check builds the dev container before PHPStan: phpstan-symfony reads it (6-architecture-setup D38).
 check:
 	$(EXEC) vendor/bin/php-cs-fixer fix --dry-run --diff
 	$(EXEC) vendor/bin/phpcs
+	$(EXEC) bin/console cache:warmup --env=dev
 	$(EXEC) vendor/bin/phpstan analyse
 	$(EXEC) vendor/bin/rector process --dry-run
 

@@ -1,6 +1,6 @@
 # Project Architecture Setup — Final Design
 
-**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** partially implemented: backend scaffold, tooling and CI `check`/`test` merged; dev `database` service, CI database job and client pending  **Updated:** 2026-11-04
+**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** partially implemented: backend scaffold, tooling, CI `check`/`test` and the dev `database` service built; CI database job and client pending  **Updated:** 2026-11-04
 
 ---
 
@@ -16,7 +16,7 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 
 - **Strict by default.** Stricter tooling over minimal defaults, in both toolchains (D2, D17).
 - **One entry point.** The root Makefile holds the backend targets. CI runs the same targets as a local run (D8, D23). Client targets are added when `/app` is scaffolded, which is when the entry point covers both toolchains (D26).
-- **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17), PostGIS and h3-pg versions as the managed instance (D24, `4-deployment-shape` D17). PostGIS and h3-pg are pinned provisionally (D37) and re-pinned once they are read from the instance (open item 1).
+- **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17), PostGIS and h3-pg versions as the managed instance (D24, `4-deployment-shape` D17). PostGIS and h3-pg are pinned provisionally (D37, D39) and re-pinned once they are read from the instance (open item 1).
 - **Local PHP is the image's PHP.** Locally, the tools run inside the app container, on the pinned base image's PHP (D28, D34). The production build returns on the same base image (D33).
 
 ---
@@ -51,12 +51,12 @@ PHP 8.5 and the latest stable Symfony 8.x minor at scaffold time (D18). Symfony 
 
 - Starts from the official Symfony Docker template for FrankenPHP (`dunglas/symfony-docker`), reduced to what the current code uses (D35).
 - Dev-only until the first deploy (D33). The Dockerfile is a single dev stage, and `backend/compose.yaml` is the only compose file. No production build exists yet.
-- Base image: `dunglas/frankenphp:1.13.4-php8.5.12`, pinned (D34). PHP extensions added on top: Composer, APCu, zip, Xdebug. OPcache is built in.
+- Base image: `dunglas/frankenphp:1.13.4-php8.5.12`, pinned (D34). PHP extensions added on top: Composer, APCu, zip, Xdebug, and pdo_pgsql from the Doctrine recipe. OPcache is built in.
 - Xdebug is off by default. It is enabled by starting the container with `XDEBUG_MODE` set (D33).
 - Published ports default to 8480 (HTTP) and 8443 (HTTPS and HTTP/3), overridable with `HTTP_PORT`, `HTTPS_PORT` and `HTTP3_PORT` in the shell (D36).
 - The worker restarts on PHP file changes (`watch`). There is no browser hot reload (D35).
 - Caddy writes no access log (`4-deployment-shape` D18). The Mercure hub is not configured yet (`5-realtime-push` D16).
-- A dev-only docker compose `database` service, built from the PostGIS + h3-pg Dockerfile in the repository, is added with the first Doctrine entity. Local integration tests use it.
+- Dev-only `database` service, built from `backend/postgres/Dockerfile` (D28, D39): `imresamu/postgis:17-3.6.1-trixie` (multi-arch) with h3-pg 4.5.0 compiled from source. The base image's PostGIS init script is removed, so the database starts with no extensions, as a managed instance does; migrations create them. Published on port 5433 by default (`POSTGRES_PORT`). The app container reaches it through `DATABASE_URL`, set in compose. Local integration tests use it.
 - Production compose services are defined in `4-deployment-shape`. The dev-only services are not part of the deployment.
 
 ### Static analysis and formatting
@@ -78,7 +78,7 @@ Slevomat Coding Standard (`slevomat/coding-standard`), sniffs enabled one by one
 |---|---|
 | Types | `TypeHints.ParameterTypeHint`, `TypeHints.PropertyTypeHint`, `TypeHints.ReturnTypeHint`, `TypeHints.DisallowMixedTypeHint` |
 | Complexity | `Complexity.Cognitive` |
-| Classes | `Classes.RequireConstructorPropertyPromotion`, `Classes.ForbiddenPublicProperty`, `Classes.RequireAbstractOrFinal` (covers `src/Entity` only with Doctrine native lazy objects enabled (D38), or with `src/Entity` excluded (D25); undecided, open item 3) |
+| Classes | `Classes.RequireConstructorPropertyPromotion`, `Classes.ForbiddenPublicProperty`, `Classes.RequireAbstractOrFinal` (covers `src/Entity`: DoctrineBundle 3 always enables native lazy objects, D40) |
 | Functions | `Functions.StaticClosure`, `Functions.UnusedParameter`, `Functions.DisallowEmptyFunction` |
 | Variables | `Variables.UnusedVariable`, `Variables.UselessVariable` |
 | Exceptions | `Exceptions.DeadCatch`, `Exceptions.ReferenceThrowableOnly`, `Exceptions.RequireNonCapturingCatch` |
@@ -143,12 +143,12 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 
 | Target | Writes files | Tools, in run order | Run by |
 |---|---|---|---|
-| `check` | No | PHP-CS-Fixer (`--dry-run`), PHP_CodeSniffer, PHPStan, Rector (`--dry-run`) | CI, local |
+| `check` | No | PHP-CS-Fixer (`--dry-run`), PHP_CodeSniffer, dev container build (`cache:warmup`), PHPStan, Rector (`--dry-run`) | CI, local |
 | `fix` | Yes | Rector, PHP-CS-Fixer, phpcbf | local only |
 | `test` | No | PHPUnit, unit suite. Integration suite added with D24 | CI, local |
 
 - Any finding from a `check` tool fails the target. Make stops at the first failing tool, so later tools report only after earlier ones pass.
-- phpstan-symfony needs the compiled dev container. `check` builds it before PHPStan runs, locally and in CI (D38). The Makefile change is not made yet.
+- phpstan-symfony needs the compiled dev container, so `check` builds it before PHPStan runs, locally and in CI (D38). The build needs no database connection: `DATABASE_URL` carries `serverVersion`.
 - No targets exist for `/app` until it is scaffolded (D26).
 - Where the targets run (D28): one Makefile variable, `EXEC`, holds the command prefix. Locally it defaults to `docker compose --project-directory backend exec -T php`, run from the repository root. In CI it is empty, so the tools run directly on the runner. Target bodies are the same in both places.
 - Tool paths in the target bodies are relative to the backend root. That root is the container's working directory locally, and the job's working directory in CI (D29).
@@ -169,8 +169,7 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 - **Lint and static-analysis ratchets.** None. The analysers start at their strictest level (D17), so there is no later tightening step.
 - **PHPStan extensions beyond the framework two, and `bleedingEdge`.** phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` are left out (D19, D38). Not a ratchet: level stays at max. Their trigger is open item 2.
 - **Pre-commit hook.** Not built. The Makefile is the entry point (D23); nothing yet needs a hook on top.
-- **CI database job and publishing the PostGIS + h3-pg image to GHCR.** Added with the first integration test, not before (D24). The Dockerfile itself arrives earlier, with the first Doctrine entity, for the local `database` service (D28).
-- **Dev-only `database` service.** Added with the first Doctrine entity, not before (D28).
+- **CI database job and publishing the PostGIS + h3-pg image to GHCR.** Added with the first integration test, not before (D24). The Dockerfile already exists, for the local `database` service (D28, D39).
 - **Production Docker build and production compose file.** Added with the first deploy, from the template's prod stages, with `${VAR:?}` guards on the secrets (D33).
 
 ---
@@ -181,11 +180,11 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 - Lint packages for the client deferred until Riverpod is adopted: superseded, since Riverpod is adopted (D7).
 - A production build in the Dockerfile from the scaffold onward (D28): deferred to the first deploy (D33).
 - No PHPStan extensions (D19): replaced, for the two framework extensions, by D38.
+- `postgis/postgis` as the database base image (D37): replaced by the multi-arch `imresamu/postgis` (D39).
 
 ---
 
 ## 11. Open items
 
-1. **Provisional test-image pins.** PostGIS (base image `postgis/postgis:17-3.6`) and h3-pg (`4.5.0`) are pinned provisionally (D37). Once the managed instance is provisioned, read the installed `postgis`, `h3` and `h3_postgis` versions from `pg_available_extensions` and re-pin the Dockerfile to match (`4-deployment-shape` open item 1).
+1. **Provisional test-image pins.** PostGIS (base image `imresamu/postgis:17-3.6.1-trixie`) and h3-pg (`4.5.0`) are pinned provisionally (D37, D39). Once the managed instance is provisioned, read the installed `postgis`, `h3` and `h3_postgis` versions from `pg_available_extensions` and re-pin the Dockerfile to match (`4-deployment-shape` open item 1).
 2. **Trigger for phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge`.** D38 leaves them out and sets no trigger. Whether they need one is open.
-3. **Final entities.** `Classes.RequireAbstractOrFinal` on `src/Entity` holds only with Doctrine native lazy objects enabled (D38). The other route is excluding `src/Entity` from the sniff (D25). Neither is decided.

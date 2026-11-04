@@ -620,7 +620,7 @@ Also:
 
 **Trade-off accepted:** a version mismatch is found at provisioning, not before.
 
-**Status:** Provisional.
+**Status:** Provisional. ⚠ Partly superseded by D39 (2026-11-04): the base image only. The PostGIS 3.6 and h3-pg 4.5.0 versions and their provisional status stand.
 
 ---
 
@@ -650,8 +650,50 @@ Also:
 
 ---
 
+## D39 — The database image builds on the multi-arch `imresamu/postgis` and compiles h3-pg
+
+**Supersedes:** D37, in part (the base image only).
+
+**Decision:**
+
+- Base image `imresamu/postgis:17-3.6.1-trixie` (Postgres 17, PostGIS 3.6.1), for amd64 and arm64. It is published by the second-largest contributor to `postgis/docker-postgis`.
+- h3-pg `4.5.0` is compiled from its git tag at image build time. The build tools are removed in the same layer.
+- The base image's init script, which enables `postgis`, `postgis_topology` and the tiger geocoder in the new database, is removed. The database starts with no extensions, like a fresh managed instance, and migrations create the extensions it needs.
+- The dev compose `database` service publishes port 5433 by default (`POSTGRES_PORT`), for the same reason as D36: a local Postgres often holds 5432.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| `postgis/postgis:17-3.6`, as D37 named it | Published for amd64 only. It does not run natively on the Apple Silicon development machine. |
+| The same image forced to `linux/amd64` | Keeps the official image, but runs under emulation locally: slower builds and queries. |
+| `postgres:17` with the PGDG packages `postgresql-17-postgis-3` and `postgresql-17-h3` | Nothing to compile, but PGDG ships PostGIS 3.7.0 and h3-pg 4.2.3, so both D37 versions change. Apt version pins also break when PGDG drops an old build. |
+
+**Rationale:** Found while building the image; recommended and accepted on 2026-11-04. The multi-arch image and a source build keep both D37 versions, native on both architectures.
+
+**Trade-off accepted:** the base image is a community build, not the official one. The h3-pg compile adds about a minute to a cold image build.
+
+**Also found:** `h3_postgis` requires `postgis_raster` (`CREATE EXTENSION h3_postgis CASCADE`). DigitalOcean lists `postgis_raster` as supported, so the production hard filter still holds (`4-deployment-shape` D2, D14).
+
+**Status:** Provisional, with D37's versions.
+
+---
+
+## D40 — Final entities need no sniff exclusion: DoctrineBundle 3 always enables native lazy objects
+
+**Resolves:** design open item 3.
+
+**Decision:** `Classes.RequireAbstractOrFinal` covers `src/Entity`. No exclusion is configured.
+
+**Rationale:** In DoctrineBundle 3.3, the installed version, native lazy objects are always on. The `enable_native_lazy_objects` option is deprecated, defaults to `true`, and is removed in DoctrineBundle 4.0. D25's condition for excluding entities (the sniff being incompatible with them) therefore does not arise, and phpstan-doctrine allows `final` entities with native lazy objects (D38). This is a fact of the installed versions, not a choice between options.
+
+**Assumption, falsifiable:** phpstan-doctrine detects the native-lazy-object setting. If it still reports `final` entities when the first entity lands, this entry is revisited.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
-- PostGIS and h3-pg pins for the test image are provisional, to be re-pinned from the managed instance (design Open item 1; D24, D37).
+- PostGIS and h3-pg pins for the test image are provisional, to be re-pinned from the managed instance (design Open item 1; D24, D37, D39).
 - Trigger for phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` (design Open item 2; D27, D38).
-- Final entities: `Classes.RequireAbstractOrFinal` on `src/Entity` needs Doctrine native lazy objects (D38) or an exclusion of `src/Entity` from the sniff (D25). Neither is decided (design Open item 3).
