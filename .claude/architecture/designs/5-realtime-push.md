@@ -1,6 +1,6 @@
 # Real-Time Push on Ingestion Completion — Final Design
 
-**Issue:** [BEN-5](https://benchfinder.youtrack.cloud/issue/BEN-5)  **Status:** settled, not implemented  **Updated:** 2026-10-08
+**Issue:** [BEN-5](https://benchfinder.youtrack.cloud/issue/BEN-5)  **Status:** settled, not implemented  **Updated:** 2026-11-04
 
 ---
 
@@ -110,6 +110,7 @@ If the stream does not connect, or the event does not arrive in time, the client
 - **Persistent viewport-tracking connections.** Subscription updates as the map moves, multi-cell tracking, heartbeats, reconnect state. Substantial machinery for a benefit that is questionable for a bench finder. Possible future stretch goal.
 - **WebSocket vs Mercure comparison.** Deferred. A later comparison with WebSocket is of interest.
 - **Standalone or highly available hub.** Trigger: a second app instance. See D13.
+- **Hub configuration in the Caddyfile.** The `mercure` block and its JWT keys are added with the first publishing code, together with publisher authorisation (Open item 4). The scaffold has no hub configured (D16).
 - **Reconciliation sweep for missed events.** Not built (D11).
 - **15 s timeout tuning.** Named, not open. Tuned against real completion times (D10).
 

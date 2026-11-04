@@ -203,6 +203,26 @@ Decisions leading to `../designs/5-realtime-push.md`.
 
 ---
 
+## D16 — The hub is configured with the first publisher, not in the scaffold
+
+**Decision:** The backend scaffold ships without the Caddyfile's `mercure` block and the hub's JWT key settings. They are added with the first code that publishes, together with the publisher authorisation (Open item 4). D13 is unchanged: the hub stays embedded in the app's FrankenPHP process.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Keep the template's hub configuration from the scaffold onward | Nothing publishes or subscribes yet. The template's settings were unverified: anonymous subscribers, placeholder JWT keys, and a `protocol_version_compatibility` line whose stated purpose was doubtful. They would have been carried into the publisher work as if decided. |
+
+**Rationale:** The project rule is no speculative abstractions (`6-architecture-setup` D33, D35). The hub's settings belong with Open item 4, where key handling is designed.
+
+**Trade-off accepted:** the template's dev hot reload depends on a configured hub and is dropped (`6-architecture-setup` D35).
+
+**Revisit trigger:** the first publishing code.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
 - Subscribe-before-publish race (design open item 1).

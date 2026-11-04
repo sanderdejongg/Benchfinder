@@ -417,7 +417,7 @@ D19's decision is unchanged and remains Provisional. This decision adds only its
 
 **Relation to D24:** D24 defers the CI database job and publishing the image to GHCR until the first integration test. The Dockerfile itself is now needed earlier, for the local `database` service, from the first Doctrine entity. D24 is otherwise unchanged.
 
-**Status:** Settled.
+**Status:** Settled. ⚠ Superseded in part by D33 (2026-11-04): the Dockerfile's production build is deferred to the first deploy. The rest of D28 stands.
 
 ---
 
@@ -503,6 +503,87 @@ D19's decision is unchanged and remains Provisional. This decision adds only its
 | `@PHP8x5Migration` only | Inconsistent with D20, which already enables `@Symfony:risky` and allows risky rules. |
 
 **Rationale:** Applies D2 (stricter over minimal). This was the orchestrator's recommendation during implementation, and the user did not overrule it.
+
+**Status:** Settled.
+
+---
+
+## D33 — The backend Docker setup is dev-only until the first deploy
+
+**Supersedes:** the production-build part of D28.
+
+**Decision:**
+
+- The Dockerfile has one stage: the dev image. The template's production stages are removed.
+- One compose file, `backend/compose.yaml`, holds the dev setup. The template's `compose.override.yaml` is merged into it, and `compose.prod.yaml` and the prod PHP ini are removed.
+- Xdebug is off by default. It is enabled per run by starting the container with `XDEBUG_MODE` set.
+- The production build and production compose return with the first deploy (`4-deployment-shape`).
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Keep the template's production stages and `compose.prod.yaml` (D28 as written) | Nothing deploys yet. An unused build path is not exercised and drifts. The template's prod compose also started with `APP_SECRET` and the Mercure key empty when unset, with only a warning. |
+| Keep a base stage plus a dev stage, ready for prod | The base stage has one consumer. A split for a stage that does not exist is a speculative abstraction. |
+| Keep the base compose file plus the dev override | The split only existed so prod could layer on the same base. Without prod, it put the dev settings in two places, and they disagreed: the override set Xdebug to `develop` while the Dockerfile set it `off`. |
+
+**Rationale:** The project rule is no speculative abstractions: what is not needed now is not built. Decided by the user while reviewing the scaffold PR.
+
+**Trade-off accepted:** the production build is re-derived from the template at the first deploy: the stage split returns, and the prod compose needs `${VAR:?}` guards so missing secrets stop startup.
+
+**Revisit trigger:** the first deploy.
+
+**Status:** Settled.
+
+---
+
+## D34 — The FrankenPHP base image is pinned to an exact tag
+
+**Decision:** The Dockerfile builds from `dunglas/frankenphp:1.13.4-php8.5.12`, not the floating `1-php8.5`. Upgrades of FrankenPHP, PHP and Caddy are an explicit tag bump.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Floating `1-php8.5` (the template default) | Any rebuild can pick up a new FrankenPHP minor, PHP patch or Caddy version without a change in the repository, so builds are not reproducible. |
+
+**Rationale:** The image is the PHP that the local tools run on (D28). It should change only when the repository changes.
+
+**Trade-off accepted:** security patches are not picked up automatically. A bump is a manual step.
+
+**Sideways constraint:** CI installs PHP 8.5 through `setup-php` (D28), which takes the latest 8.5 patch. CI can therefore run a newer patch than the image. This is a further case of D28's accepted trade-off.
+
+**Status:** Settled.
+
+---
+
+## D35 — The scaffold keeps only what the current code uses
+
+**Decision:** These template defaults are removed:
+
+- **Sessions.** `framework.session`, its test mock, and `session.use_strict_mode`. The API has no logins and starts no sessions.
+- **The `intl` extension.** Nothing installed needs it. Symfony falls back to its polyfills.
+- **The `file` package and the `opcache` install line.** `file` is only for MIME detection, and there are no uploads. The base image already ships `file`. OPcache is built into PHP 8.5.
+- **The `nonroot` user and git `safe.directory`.** Both served the template's devcontainer, which was removed. In the monorepo, `/app` holds no `.git`, so `safe.directory` had no effect.
+- **Vulcain** (`vulcain` in the Caddyfile). It adds preload hints for hypermedia APIs, which no design uses.
+- **Dev hot reload** (`hot_reload`). It requires the Mercure hub (`5-realtime-push` D16) and reloads browser pages, which a JSON API does not need. The worker's `watch` setting, which restarts workers when PHP files change, stays.
+- **`merge=ours` on `composer.lock`.** No `merge.ours` driver is configured, so the line did nothing. With the driver configured, it would keep the local lock file and discard the other branch's dependency changes.
+- **The `php-http/discovery` plugin allowance.** No such package is installed.
+
+Also:
+
+- `symfony/polyfill-php85` is added to Composer's `replace`, in line with the template's entries for PHP 7.2 to 8.4.
+- `.editorconfig` moves from `backend/` to the repository root, so it also covers the root `Makefile` (tabs), `.github/` and the docs.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Keep the template unchanged, for easier comparison with upstream | Config for features that are not used still has to be read and understood, and some of it was wrong for this repository (`merge=ours`, `safe.directory`). |
+
+**Rationale:** The same rule as D33. Each removal was checked against the running dev container.
+
+**Trade-off accepted:** the scaffold diverges further from `dunglas/symfony-docker`. Pulling in later template changes needs a manual diff.
 
 **Status:** Settled.
 

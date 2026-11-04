@@ -202,4 +202,4 @@ The purge is scheduled from day one while ingestion stays manual because the two
 ## Unresolved at time of writing
 
 - Visitor-upsert failure versus the never-reject rule (design open item 1).
-- Log retention enforcement is resolved by D13, subject to the access-log header filter (`4-deployment-shape` open item 5).
+- Log retention enforcement is resolved by D13. Its access-log requirement is met by `4-deployment-shape` D18: access logging is off.

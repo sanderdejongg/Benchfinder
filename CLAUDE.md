@@ -17,7 +17,7 @@ Benchfinder is a no-login mobile app that answers "where can I sit?": it shows p
 - `/.claude/rules/` project rules (not architecture)
 
 ## Hard constraints
-- Visitor ID and precise location never appear in the same log line. At MVP the visitor ID is never logged (requires the access-log header filter — see `3-visitor-identity`).
+- Visitor ID and precise location never appear in the same log line. At MVP the visitor ID is never logged. Caddy writes no access log; adding one requires the `X-Visitor-Id` header filter first (`3-visitor-identity` D13, `4-deployment-shape` D18).
 - No results is `200` with `"benches": []`, never `404`.
 - OSM/ODbL attribution is shown in-app (settings/about).
 - No user accounts at MVP. The anonymous visitor UUID is a device fingerprint: plumbing only, purpose-limited under GDPR, never repurposed for location-data monetisation.
@@ -38,9 +38,9 @@ Nearby search (`2-nearby-search`) comes before the ingestion pipeline (`1-ingest
 - One Overpass call per cold or stale cell, covering the k=2 disk of about 2 km (`1-2-cell-ingestion` D8–D9).
 - Symfony Messenger on RabbitMQ for ingestion jobs (`1-4-dispatch-mechanism` D2).
 - Mercure (SSE) for push: one event per job, invalidation signal only (`5-realtime-push` D5, D12, D14).
-- Visitor ID is not logged (access-log filter required, see `3-visitor-identity`). The 12-month purge runs on Symfony Scheduler (`3-visitor-identity` D13–D14).
+- Visitor ID is not logged; Caddy access logging is off (`3-visitor-identity` D13, `4-deployment-shape` D18). The 12-month purge runs on Symfony Scheduler (`3-visitor-identity` D13–D14).
 - flutter_map over google_maps_flutter (`7-flutter-client` D1).
-- Backend tooling: PHPStan at max, PHP-CS-Fixer and PHP_CodeSniffer as separate tools (no ECS), Rector, curated Slevomat sniffs with no formatting rules, one Makefile as the entry point (`6-architecture-setup` D18–D23, D25, D26). Locally the targets run in the app container (Symfony Docker template, dev-only PostGIS + h3-pg `database` service); in CI directly on the runner (D28). CI database job waits for the first integration test (D24).
+- Backend tooling: PHPStan at max, PHP-CS-Fixer and PHP_CodeSniffer as separate tools (no ECS), Rector, curated Slevomat sniffs with no formatting rules, one Makefile as the entry point (`6-architecture-setup` D18–D23, D25, D26). Locally the targets run in the app container (Symfony Docker template trimmed to a dev-only image on a pinned FrankenPHP tag, D33–D35; dev-only PostGIS + h3-pg `database` service); in CI directly on the runner (D28). CI database job waits for the first integration test (D24).
 - Postgres 17 Standard Edition; Postgres 18 is blocked until DigitalOcean offers h3 for it (`4-deployment-shape` D17).
 
 ## Explicitly deferred (don't re-litigate)
@@ -50,6 +50,8 @@ Nearby search (`2-nearby-search`) comes before the ingestion pipeline (`1-ingest
 - Flutter web target (CORS; browser storage differs from keychain)
 - Scheduled ingestion, until its named trigger (`4-deployment-shape` D12, D16)
 - Standalone or HA Mercure hub; trigger: a second app instance (`5-realtime-push` D13)
+- Production Docker build and compose; trigger: the first deploy (`6-architecture-setup` D33)
+- Mercure hub configuration in the Caddyfile; trigger: the first publisher (`5-realtime-push` D16)
 - WebSocket vs Mercure comparison
 - OpenBenches enrichment
 - `GET /benches/{id}`
