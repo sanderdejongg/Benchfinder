@@ -232,8 +232,29 @@ The visitor purge is scheduled from day one while ingestion stays manual because
 
 ---
 
+## D18 — Caddy writes no access log
+
+**Resolves:** design Open item 5, the Caddy access-log configuration that `3-visitor-identity` D13 requires.
+
+**Decision:** The app container's Caddyfile has no `log` directive, so Caddy writes no access log. If an access log is ever added, its filter must first delete `request>headers>X-Visitor-Id`.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| An access log with a filter deleting `request>headers>X-Visitor-Id` | A deny-list of one header: a typo or a renamed header leaks the visitor ID, and only a manual check catches it. The URI, which carries lat/lon, is still logged. It was implemented first in the scaffold PR, and then replaced. |
+
+**Rationale:** No design needs request-level access logs. With no access log, nothing has to be filtered, and coordinates stay out of logs as well. Both options were already allowed by `3-visitor-identity` D13 and Open item 5. Checked against the running dev container: a request carrying `X-Visitor-Id` and coordinates left neither in the container output.
+
+**Trade-off accepted:** no per-request logs for debugging or traffic figures. Application logs (Monolog) are unaffected and remain bound by D13.
+
+**Revisit trigger:** a concrete need for request-level logs. Then an access log is added with the header filter, preferably keeping only the fields that are needed.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
 - Installed h3-pg version on the provisioned instance (D17; design Open item 1).
 - Droplet OS patching cadence, RabbitMQ backup, and Droplet sizing (design Open items 2 to 4).
-- Caddy access-log filter for `X-Visitor-Id` (design Open item 5; `3-visitor-identity` D13).

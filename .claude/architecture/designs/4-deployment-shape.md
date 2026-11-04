@@ -1,6 +1,6 @@
 # Deployment Shape — Final Design
 
-**Issue:** [BEN-4](https://benchfinder.youtrack.cloud/issue/BEN-4)  **Status:** settled, not implemented  **Updated:** 2026-10-15
+**Issue:** [BEN-4](https://benchfinder.youtrack.cloud/issue/BEN-4)  **Status:** settled, not implemented  **Updated:** 2026-11-04
 
 ---
 
@@ -46,7 +46,7 @@ Scope notes:
 - The **worker** container runs `messenger:consume`. It executes per-cell ingestion jobs (`1-2-cell-ingestion`) and the Symfony Scheduler, which runs the visitor purge (`3-visitor-identity` D14).
 - The **rabbitmq** container is the AMQP broker for Messenger (`1-4-dispatch-mechanism` D2).
 - The bulk Geofabrik backfill is a Symfony Console command, separate from the per-cell path (decision log D6, D9).
-- These are the production services. Local development adds a dev-only `database` service (PostGIS + h3-pg) and the template's dev build; both are defined in `6-architecture-setup` D28 and are not deployed.
+- These are the production services. Local development adds a dev-only `database` service (PostGIS + h3-pg) and the dev image; both are defined in `6-architecture-setup` (D28, D33) and are not deployed. The production Docker build is added with the first deploy (`6-architecture-setup` D33).
 
 ---
 
@@ -94,7 +94,7 @@ Why the purge is scheduled from day one while ingestion stays manual: the two ri
 
 - **Visitor purge.** A Symfony Scheduler recurring message, consumed by the worker (`3-visitor-identity` D14). It needs no CI secret and no path from CI to the database.
 - **Push.** The Mercure hub runs inside the app container (`5-realtime-push` D13). It needs no separate connection from the database.
-- **Access logs.** The app container's access log must omit the `X-Visitor-Id` request header (open item 5), or access logging is off. This is what keeps the visitor ID out of logs (`3-visitor-identity` D13).
+- **Access logs.** Off: Caddy has no `log` directive, so the app container writes no access log (D18). This keeps the visitor ID and request coordinates out of logs (`3-visitor-identity` D13). Adding an access log requires a filter deleting `request>headers>X-Visitor-Id` first.
 - **CI.** GitHub Actions runs lint, static analysis and tests (`6-architecture-setup` D10, D16, D17).
 
 ---
@@ -110,7 +110,7 @@ No schema. Compose services: app (FrankenPHP + embedded Mercure hub), worker (me
 - `1-ingestion-pipeline`: parent. The Overpass/Geofabrik split and the batch command.
 - `1-2-cell-ingestion`: the per-cell job that runs in the worker.
 - `1-4-dispatch-mechanism`: RabbitMQ and Messenger, both on the Droplet.
-- `3-visitor-identity`: the purge on Scheduler, and the access-log requirement.
+- `3-visitor-identity`: the purge on Scheduler, and the no-logging rule that D18 meets.
 - `5-realtime-push`: the embedded hub and single-instance topology.
 - `6-architecture-setup`: CI on GitHub Actions, and the test database, which pins Postgres 17 and the instance's h3-pg version.
 
@@ -138,6 +138,5 @@ No schema. Compose services: app (FrankenPHP + embedded Mercure hub), worker (me
 2. **Droplet OS patching cadence.** Not decided.
 3. **RabbitMQ durability and backup.** Queue durability is set at the transport (`1-4-dispatch-mechanism`). Whether RabbitMQ state is backed up, and how, is not decided.
 4. **Droplet sizing.** Not decided. No load figures exist yet.
-5. **Caddy access-log configuration must filter `X-Visitor-Id`.** FrankenPHP is Caddy. Caddy's JSON access log records request headers and the full URI, which carries lat/lon. The log filter must delete `request>headers>X-Visitor-Id`, or access logging must be off. Until this is configured and checked, the no-visitor-ID-in-logs rule is not met (`3-visitor-identity` D13).
 
 Tension, recorded: a self-hosted RabbitMQ sits against the managed-services principle (section 5). Accepted, not resolved.

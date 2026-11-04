@@ -1,6 +1,6 @@
 # Real-Time Push on Ingestion Completion — Final Design
 
-**Issue:** [BEN-5](https://benchfinder.youtrack.cloud/issue/BEN-5)  **Status:** settled, not implemented  **Updated:** 2026-10-08
+**Issue:** [BEN-5](https://benchfinder.youtrack.cloud/issue/BEN-5)  **Status:** settled, not implemented  **Updated:** 2026-11-04
 
 ---
 
@@ -110,6 +110,7 @@ If the stream does not connect, or the event does not arrive in time, the client
 - **Persistent viewport-tracking connections.** Subscription updates as the map moves, multi-cell tracking, heartbeats, reconnect state. Substantial machinery for a benefit that is questionable for a bench finder. Possible future stretch goal.
 - **WebSocket vs Mercure comparison.** Deferred. A later comparison with WebSocket is of interest.
 - **Standalone or highly available hub.** Trigger: a second app instance. See D13.
+- **Hub configuration in the Caddyfile.** The `mercure` block and its JWT keys are added with the first publishing code, together with publisher authorisation (Open item 4). The scaffold has no hub configured (D16).
 - **Reconciliation sweep for missed events.** Not built (D11).
 - **15 s timeout tuning.** Named, not open. Tuned against real completion times (D10).
 
@@ -129,5 +130,5 @@ If the stream does not connect, or the event does not arrive in time, the client
 1. **Subscribe-before-publish race.** A job can finish before the client has attached its stream. The event is then not delivered, and the client waits for the 15 s timeout before the pull-to-refresh fallback, even though the data is ready. Options not decided: replay of past events from the hub (Mercure's `Last-Event-ID` mechanism, if the hub keeps history), a single PostGIS re-check once the stream is attached, or accepting the delay.
 2. **Topic name format.** Not chosen. A cell index is the obvious basis.
 3. **Event payload JSON shape.** Not chosen beyond "cell indexes, no bench data".
-4. **Publisher authorisation.** The hub's publish endpoint needs authorisation from the publisher. Key handling is not designed.
+4. **Publisher authorisation.** The hub's publish endpoint needs authorisation from the publisher. Key handling is not designed. The hub version in the FrankenPHP image accepts `publisher_jwt` and `subscriber_jwt` only with `protocol_version_compatibility 8`. Whether to use that, or the newer key configuration, is part of this item (D16).
 5. **Client re-call policy.** Whether the client re-calls once per event, or repeats while `pending_cells` is non-empty. See `7-flutter-client` open items. Interacts with `2-nearby-search` open item 3: under the wider `pending_cells` scope, a repeat re-call can dispatch further jobs.

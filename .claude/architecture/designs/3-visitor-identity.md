@@ -1,6 +1,6 @@
 # Anonymous Visitor Identity — Final Design
 
-**Issue:** [BEN-3](https://benchfinder.youtrack.cloud/issue/BEN-3)  **Status:** settled, not implemented  **Updated:** 2026-10-08
+**Issue:** [BEN-3](https://benchfinder.youtrack.cloud/issue/BEN-3)  **Status:** settled, not implemented  **Updated:** 2026-11-04
 
 ---
 
@@ -27,7 +27,7 @@ The ID's purpose is scoped narrowly: distinguish this installation for feature p
 - The ID must never be the reason a request fails (D6).
 - Visitor ID and precise location must never be co-logged (D7). At MVP, the visitor ID is never logged at all (D13).
 - Retention: visitor rows are purged after 12 months of inactivity (D9).
-- Access logs must omit the `X-Visitor-Id` header (a Caddy log filter deleting `request>headers>X-Visitor-Id`), or access logging must be off. Without this, the no-logging rule (D13) does not hold, since Caddy logs request headers.
+- Caddy writes no access log (`4-deployment-shape` D18). Caddy's access log records request headers, so adding one requires a filter deleting `request>headers>X-Visitor-Id` first; without it, the no-logging rule (D13) does not hold.
 - The upsert is synchronous on the request path (D11). Whether a failed upsert fails the request sits against the never-reject rule (D6). That question is open item 1.
 
 ---
@@ -71,7 +71,7 @@ Visitor rows are purged when `last_seen` is older than 12 months. The purge is a
 
 ### Logging policy
 
-The visitor ID is never logged: not in Monolog output, not in access logs (D13). This makes the rule "visitor ID and precise location never share a log line" hold provided the access log is configured to omit the `X-Visitor-Id` request header, for example a Caddy log filter deleting `request>headers>X-Visitor-Id`, or access logging is switched off. Caddy's JSON access log records request headers and the full URI, and the URI carries lat/lon, so the filter is a configuration requirement tracked in `4-deployment-shape` open item 5. Precise location may still appear in request logs, because the nearby request carries coordinates; the visitor ID does not appear in them.
+The visitor ID is never logged: not in Monolog output, not in access logs (D13). This makes the rule "visitor ID and precise location never share a log line" hold. Access logging is off (`4-deployment-shape` D18), so neither the `X-Visitor-Id` header nor the request URI, which carries lat/lon, is logged. If an access log is added later, it must filter `request>headers>X-Visitor-Id` first; precise location may then appear in it, the visitor ID may not.
 
 ### Mercure
 
@@ -123,4 +123,4 @@ Purge: rows where `last_seen < now() - interval '12 months'`.
 
 1. **Visitor-upsert failure.** If the upsert fails, the request either fails (against the never-reject rule, D6) or proceeds without recording the visitor. Not decided. Shares the failure-path question in `2-nearby-search` open item 1.
 
-The log retention enforcement item is resolved by D13 (2026-10-08), subject to the access-log requirement above.
+The log retention enforcement item is resolved by D13 (2026-10-08). Its access-log requirement is met by `4-deployment-shape` D18 (2026-11-04).

@@ -1,6 +1,6 @@
 # Project Architecture Setup — Final Design
 
-**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** settled, not implemented  **Updated:** 2026-10-15
+**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** settled, not implemented  **Updated:** 2026-11-04
 
 ---
 
@@ -17,7 +17,7 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 - **Strict by default.** Stricter tooling over minimal defaults, in both toolchains (D2, D17).
 - **One entry point.** The root Makefile holds the backend targets. CI runs the same targets as a local run (D8, D23). Client targets are added when `/app` is scaffolded, which is when the entry point covers both toolchains (D26).
 - **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17) and h3-pg version as the managed instance (D24, `4-deployment-shape` D17). The h3-pg version is pinned once it is read from the instance (open item 1).
-- **Local PHP matches production.** Locally, the tools run inside the app container, on the image's PHP (D28).
+- **Local PHP is the image's PHP.** Locally, the tools run inside the app container, on the pinned base image's PHP (D28, D34). The production build returns on the same base image (D33).
 
 ---
 
@@ -25,6 +25,7 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 
 ```
 /CLAUDE.md                               project orientation
+/.editorconfig                           editor settings for the whole repository (D35)
 /Makefile                                single entry point: check, fix, test (D23, D26)
 /.claude/architecture/designs/           current state, one file per topic
 /.claude/architecture/decisions/         why, append-only
@@ -46,10 +47,15 @@ Doc naming: numeric topic slugs (`2-nearby-search`, children `1-1-…`). The tra
 
 PHP 8.5 and the latest stable Symfony 8.x minor at scaffold time (D18). Symfony on FrankenPHP, Doctrine with jsor/doctrine-postgis, Symfony Messenger on RabbitMQ, Symfony Scheduler, Symfony Console. Chosen as part of the stack for learning value, with the newer parts of Symfony as the explicit learning target (D13).
 
-### Docker setup (D28)
+### Docker setup (D28, D33–D35)
 
-- Starts from the official Symfony Docker template for FrankenPHP (`dunglas/symfony-docker`).
-- The Dockerfile has a dev build, carrying the dev dependencies the tools need, and a production build.
+- Starts from the official Symfony Docker template for FrankenPHP (`dunglas/symfony-docker`), reduced to what the current code uses (D35).
+- Dev-only until the first deploy (D33). The Dockerfile is a single dev stage, and `backend/compose.yaml` is the only compose file. No production build exists yet.
+- Base image: `dunglas/frankenphp:1.13.4-php8.5.12`, pinned (D34). PHP extensions added on top: Composer, APCu, zip, Xdebug. OPcache is built in.
+- Xdebug is off by default. It is enabled by starting the container with `XDEBUG_MODE` set (D33).
+- Published ports default to 8480 (HTTP) and 8443 (HTTPS and HTTP/3), overridable with `HTTP_PORT`, `HTTPS_PORT` and `HTTP3_PORT` in the shell (D36).
+- The worker restarts on PHP file changes (`watch`). There is no browser hot reload (D35).
+- Caddy writes no access log (`4-deployment-shape` D18). The Mercure hub is not configured yet (`5-realtime-push` D16).
 - A dev-only docker compose `database` service, built from the PostGIS + h3-pg Dockerfile in the repository, is added with the first Doctrine entity. Local integration tests use it.
 - Production compose services are defined in `4-deployment-shape`. The dev-only services are not part of the deployment.
 
@@ -164,6 +170,7 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 - **Pre-commit hook.** Not built. The Makefile is the entry point (D23); nothing yet needs a hook on top.
 - **CI database job and publishing the PostGIS + h3-pg image to GHCR.** Added with the first integration test, not before (D24). The Dockerfile itself arrives earlier, with the first Doctrine entity, for the local `database` service (D28).
 - **Dev-only `database` service.** Added with the first Doctrine entity, not before (D28).
+- **Production Docker build and production compose file.** Added with the first deploy, from the template's prod stages, with `${VAR:?}` guards on the secrets (D33).
 
 ---
 
@@ -171,6 +178,7 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 
 - Permissive static-analysis start, with a later ratchet: replaced by maximum level from day one (D3, D12, D17).
 - Lint packages for the client deferred until Riverpod is adopted: superseded, since Riverpod is adopted (D7).
+- A production build in the Dockerfile from the scaffold onward (D28): deferred to the first deploy (D33).
 
 ---
 

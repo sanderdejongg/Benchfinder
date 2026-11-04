@@ -1,0 +1,43 @@
+---
+# Dev only. Production compose returns with the first deploy.
+services:
+  php:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-localhost}
+      DEFAULT_URI: https://${SERVER_NAME:-localhost}:${HTTPS_PORT:-8443}
+      # Off by default. Enable per run: XDEBUG_MODE=debug docker compose up -d
+      XDEBUG_MODE: ${XDEBUG_MODE:-off}
+    volumes:
+      - ./:/app
+      - ./frankenphp/Caddyfile:/etc/frankenphp/Caddyfile:ro
+      - ./frankenphp/conf.d/20-app.dev.ini:/usr/local/etc/php/app.conf.d/20-app.dev.ini:ro
+      # Keep var/ off the bind mount for faster I/O on macOS.
+      - /app/var
+      - caddy_data:/data
+      - caddy_config:/config
+    # Dev defaults avoid 80/443, which local web servers often hold.
+    # Caddy's HTTP->HTTPS redirect drops the port: use https://localhost:8443 directly.
+    ports:
+      - name: http
+        target: 80
+        published: ${HTTP_PORT:-8480}
+        protocol: tcp
+      - name: https
+        target: 443
+        published: ${HTTPS_PORT:-8443}
+        protocol: tcp
+      - name: http3
+        target: 443
+        published: ${HTTP3_PORT:-8443}
+        protocol: udp
+    extra_hosts:
+      # Defines host.docker.internal on Linux, for Xdebug.
+      - host.docker.internal:host-gateway
+    tty: true
+
+volumes:
+  caddy_data:
+  caddy_config:
