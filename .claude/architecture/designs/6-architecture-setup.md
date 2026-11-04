@@ -53,6 +53,7 @@ PHP 8.5 and the latest stable Symfony 8.x minor at scaffold time (D18). Symfony 
 - Dev-only until the first deploy (D33). The Dockerfile is a single dev stage, and `backend/compose.yaml` is the only compose file. No production build exists yet.
 - Base image: `dunglas/frankenphp:1.13.4-php8.5.12`, pinned (D34). PHP extensions added on top: Composer, APCu, zip, Xdebug. OPcache is built in.
 - Xdebug is off by default. It is enabled by starting the container with `XDEBUG_MODE` set (D33).
+- Published ports default to 8480 (HTTP) and 8443 (HTTPS and HTTP/3), overridable with `HTTP_PORT`, `HTTPS_PORT` and `HTTP3_PORT` in the shell (D36).
 - The worker restarts on PHP file changes (`watch`). There is no browser hot reload (D35).
 - Caddy writes no access log (`4-deployment-shape` D18). The Mercure hub is not configured yet (`5-realtime-push` D16).
 - A dev-only docker compose `database` service, built from the PostGIS + h3-pg Dockerfile in the repository, is added with the first Doctrine entity. Local integration tests use it.

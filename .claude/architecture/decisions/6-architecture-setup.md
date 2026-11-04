@@ -589,6 +589,24 @@ Also:
 
 ---
 
+## D36 — Dev compose publishes 8480 and 8443 by default
+
+**Decision:** The dev compose file publishes HTTP on 8480 and HTTPS and HTTP/3 on 8443 by default. `HTTP_PORT`, `HTTPS_PORT` and `HTTP3_PORT` override them; they are read from the shell or `backend/.env`, not from `.env.local`.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| The template's 80 and 443, overridden per machine | Local web servers commonly hold 80 and 443. On the developer machine nginx did, so `docker compose up` failed out of the box. The compose file is dev-only (D33), so it has no reason to use the production ports. |
+
+**Rationale:** The dev setup should start without per-machine configuration.
+
+**Trade-off accepted:** Caddy's HTTP-to-HTTPS redirect goes to port 443, not 8443. Clients call `https://localhost:8443` directly.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
 - h3-pg version for the test image (design Open item 1; D24).
