@@ -2,7 +2,7 @@
 
 Decisions leading to `../designs/2-nearby-search.md`.
 
-**Updated:** 2026-10-08
+**Updated:** 2026-11-04
 
 ---
 
@@ -237,8 +237,86 @@ Decisions leading to `../designs/2-nearby-search.md`.
 
 ---
 
+## D18 — Bench `id` is a UUIDv7, generated in PHP
+
+**Decision:** The `benches` primary key is a UUIDv7 from Symfony Uid, stored in a native Postgres `uuid` column. It is serialised as a string in the response, as the response contract already showed (`"id": "..."`). PHP generates the value, not the database: Postgres 17 has no `uuidv7()` function. That function arrives in Postgres 18, which is blocked (`4-deployment-shape` D17).
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Bigint identity column | Not argued beyond the string `id` the response contract already showed. |
+
+**Rationale:** Recommended in the 2026-11-04 discussion and accepted. Time-ordered UUIDs keep B-tree insert locality, which random v4 does not. The string `id` matches the response contract.
+
+**Trade-off accepted:** every insert path must supply the `id` from PHP, including ingestion's native-SQL upsert when it is built.
+
+**Status:** Settled.
+
+---
+
+## D19 — Dev data is seeded with doctrine/doctrine-fixtures-bundle; integration tests seed their own rows
+
+**Decision:**
+
+- The bundle is a dev dependency, enabled in `dev` and `test` only, never in production.
+- Fixtures load a small real OSM sample: a few dozen benches in one area. The fixture file carries the OSM/ODbL attribution, since the data is OSM-derived.
+- Integration tests do not depend on the fixtures. Each test inserts the rows it needs, rolled back by dama/doctrine-test-bundle (`6-architecture-setup` D16).
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| A seed console command that parses Overpass JSON | It builds ingestion's parser ahead of `1-2-cell-ingestion`, against the project rule against speculative abstractions. |
+
+**Rationale:** Fixtures never run in production. `1-ingestion-pipeline` D1 ("no bulk seed") is about production data, so the two do not conflict.
+
+**Status:** Settled.
+
+---
+
+## D20 — The first migration creates only the `benches` columns the first slice uses
+
+**Decision:** The first migration creates these `benches` columns: `id`, `source`, `source_id`, `geog` (geography Point, SRID 4326, GIST index), `has_backrest`, `is_covered`, `is_accessible`, `created_at` and `updated_at`. Uniqueness is on `(source, source_id)` (`1-ingestion-pipeline` D3). The `h3_index` and `tags` columns are added by the ingestion migration. The nullability of the three booleans is not part of this decision (design open item 4).
+
+**Rationale:** Search reads neither `h3_index` nor `tags`. `h3_index` also brings a column-type choice (h3-pg's `h3index` type or a bigint) that belongs to ingestion. The project rule is to build nothing before it is needed.
+
+**Trade-off accepted:** a later migration alters `benches`.
+
+**Status:** Settled.
+
+---
+
+## D21 — A KNN statement that hits `statement_timeout` returns `503` with code `search_unavailable`
+
+**Decision:** A KNN statement cancelled by the 3 s `statement_timeout` (D8) returns `503` with error code `search_unavailable`. The timeout is detected as Postgres SQLSTATE `57014` (query_canceled). The body follows D11.
+
+**Rationale:** Recommended in the discussion as the part of open item 1 that this slice reaches, and accepted. A `503` marks a server-side condition that can clear on retry, not a client error. Alternatives were not argued.
+
+**Scope:** The decision covers the timeout only. Other KNN failures (for example connection loss), dispatch failure and visitor-upsert failure remain open (design open item 1).
+
+**Status:** Settled.
+
+---
+
+## D22 — The visitor upsert is not part of the first slice
+
+**Decision:** The first slice builds request flow steps 1, 3 and 5 only.
+
+- Step 4, the freshness check, is out (D17). `pending_cells` is therefore always `[]` in the first slice, and the `Link` header is never sent.
+- Step 2, the visitor upsert, is out. The `X-Visitor-Id` header is ignored until the upsert lands.
+
+**Rationale:** D17 excluded only the freshness hook. The upsert brings the `visitor` table from `3-visitor-identity` and a failure path that is still undecided (`3-visitor-identity` open item 1). The upsert ships as its own follow-up.
+
+**Trade-off accepted:** the first slice's requests record no visitor rows.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
-- Response on KNN timeout, dispatch failure (RabbitMQ unreachable) or visitor-upsert failure: status and error codes not chosen (design open item 1).
+- Response on a KNN failure other than the timeout (for example connection loss), on dispatch failure (RabbitMQ unreachable) or on visitor-upsert failure: status and error codes not chosen (design open item 1). The timeout is settled by D21.
 - `Link` header scope on `200` (design Open item 2).
 - Scope of the freshness check, and therefore of `pending_cells` (design Open item 3).
+- Nullability of `has_backrest`, `is_covered` and `is_accessible`, null or `false` default (design open item 4). Must be decided before the first migration is written (D20).

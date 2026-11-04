@@ -112,7 +112,7 @@ No schema. Compose services: app (FrankenPHP + embedded Mercure hub), worker (me
 - `1-4-dispatch-mechanism`: RabbitMQ and Messenger, both on the Droplet.
 - `3-visitor-identity`: the purge on Scheduler, and the no-logging rule that D18 meets.
 - `5-realtime-push`: the embedded hub and single-instance topology.
-- `6-architecture-setup`: CI on GitHub Actions, and the test database, which pins Postgres 17 and the instance's h3-pg version.
+- `6-architecture-setup`: CI on GitHub Actions, and the test database, which pins Postgres 17 and the instance's PostGIS and h3-pg versions (provisional until read from the instance, `6-architecture-setup` D37).
 
 ---
 
@@ -134,7 +134,7 @@ No schema. Compose services: app (FrankenPHP + embedded Mercure hub), worker (me
 
 ## 12. Open items
 
-1. **h3-pg version on the provisioned instance.** Availability is confirmed from documentation (D17). After provisioning, read the installed versions of `h3` and `h3_postgis` (`pg_available_extensions`). The CI test image pins the same version (`6-architecture-setup` D24).
+1. **PostGIS and h3-pg versions on the provisioned instance.** Availability is confirmed from documentation (D17). After provisioning, read the installed versions of `postgis`, `h3` and `h3_postgis` (`pg_available_extensions`). The CI test image pins the same versions (`6-architecture-setup` D24). Until then the image pins are provisional (`6-architecture-setup` D37).
 2. **Droplet OS patching cadence.** Not decided.
 3. **RabbitMQ durability and backup.** Queue durability is set at the transport (`1-4-dispatch-mechanism`). Whether RabbitMQ state is backed up, and how, is not decided.
 4. **Droplet sizing.** Not decided. No load figures exist yet.

@@ -256,5 +256,5 @@ The visitor purge is scheduled from day one while ingestion stays manual because
 
 ## Unresolved at time of writing
 
-- Installed h3-pg version on the provisioned instance (D17; design Open item 1).
+- Installed PostGIS and h3-pg versions on the provisioned instance (D17; design Open item 1).
 - Droplet OS patching cadence, RabbitMQ backup, and Droplet sizing (design Open items 2 to 4).

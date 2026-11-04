@@ -1,6 +1,6 @@
 # Demand-Driven Ingestion Pipeline — Final Design
 
-**Issue:** [BEN-1](https://benchfinder.youtrack.cloud/issue/BEN-1)  **Status:** settled, not implemented  **Updated:** 2026-10-08
+**Issue:** [BEN-1](https://benchfinder.youtrack.cloud/issue/BEN-1)  **Status:** settled, not implemented  **Updated:** 2026-11-04
 
 **Sub-designs:** `1-1-h3-grid-freshness` (grid and freshness), `1-2-cell-ingestion` (cold and stale cell ingestion), `1-4-dispatch-mechanism` (background dispatch).
 
@@ -66,15 +66,15 @@ The client re-calls the endpoint when the push arrives, or falls back to pull-to
 
 ```
 benches
-  id
+  id                -- UUIDv7, generated in PHP (`2-nearby-search` D18)
   source            -- 'osm'
   source_id         -- OSM node or way ID         ← upsert key with source
   geog              -- PostGIS geography(Point)   ← GIST indexed, used by KNN
-  h3_index          -- res 8; ingestion reconciliation only (1-1-h3-grid-freshness)
+  h3_index          -- res 8; ingestion reconciliation only (1-1-h3-grid-freshness); added by the ingestion migration (`2-nearby-search` D20)
   has_backrest
   is_covered
   is_accessible
-  tags              -- raw OSM tags, internal only, not exposed via API at MVP
+  tags              -- raw OSM tags, internal only, not exposed via API at MVP; added by the ingestion migration (`2-nearby-search` D20)
   ...timestamps
 ```
 

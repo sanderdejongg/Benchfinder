@@ -1,6 +1,6 @@
 # Project Architecture Setup — Final Design
 
-**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** settled, not implemented  **Updated:** 2026-11-04
+**Issue:** [BEN-6](https://benchfinder.youtrack.cloud/issue/BEN-6)  **Status:** partially implemented: backend scaffold, tooling and CI `check`/`test` merged; dev `database` service, CI database job and client pending  **Updated:** 2026-11-04
 
 ---
 
@@ -16,7 +16,7 @@ Tooling, coding standards, testing conventions, repository layout and CI for bot
 
 - **Strict by default.** Stricter tooling over minimal defaults, in both toolchains (D2, D17).
 - **One entry point.** The root Makefile holds the backend targets. CI runs the same targets as a local run (D8, D23). Client targets are added when `/app` is scaffolded, which is when the entry point covers both toolchains (D26).
-- **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17) and h3-pg version as the managed instance (D24, `4-deployment-shape` D17). The h3-pg version is pinned once it is read from the instance (open item 1).
+- **Test database matches production.** The CI and local PostGIS image runs the same Postgres major (17), PostGIS and h3-pg versions as the managed instance (D24, `4-deployment-shape` D17). PostGIS and h3-pg are pinned provisionally (D37) and re-pinned once they are read from the instance (open item 1).
 - **Local PHP is the image's PHP.** Locally, the tools run inside the app container, on the pinned base image's PHP (D28, D34). The production build returns on the same base image (D33).
 
 ---
@@ -65,7 +65,7 @@ Four standalone tools, each with its own committed config (D4). No ECS wrapper (
 
 | Tool | Role | Configuration |
 |---|---|---|
-| PHPStan | Static analysis | Level `max`. No extensions, no `bleedingEdge`, no baseline (D19, provisional; revisit point D27). |
+| PHPStan | Static analysis | Level `max`, with phpstan-doctrine and phpstan-symfony (D38). No `bleedingEdge`, no baseline (D19). phpstan-symfony reads the compiled dev container, so the container is built before PHPStan runs (D38). |
 | PHP-CS-Fixer | Formatting (fixes) | `@Symfony`, `@Symfony:risky`, `@PHP8x5Migration` and `@PHP8x5Migration:risky`, `declare_strict_types` on (D20, D32). |
 | PHP_CodeSniffer | Non-formatting sniffs: types, complexity, structure | Slevomat Coding Standard, curated list below, no formatting sniffs. Sniffs resolve through `installed_paths`; the Composer installer plugin is blocked (D31). Report-only in CI; `phpcbf` runs only from the local `fix` target (D25, D26). |
 | Rector | Automated upgrades and idiom changes | `withPhpSets()`, `withComposerBased(symfony, doctrine, phpunit)`, prepared sets `deadCode`, `codeQuality`, `typeDeclarations`, `earlyReturn`. CI runs `--dry-run` (D22). |
@@ -78,7 +78,7 @@ Slevomat Coding Standard (`slevomat/coding-standard`), sniffs enabled one by one
 |---|---|
 | Types | `TypeHints.ParameterTypeHint`, `TypeHints.PropertyTypeHint`, `TypeHints.ReturnTypeHint`, `TypeHints.DisallowMixedTypeHint` |
 | Complexity | `Complexity.Cognitive` |
-| Classes | `Classes.RequireConstructorPropertyPromotion`, `Classes.ForbiddenPublicProperty`, `Classes.RequireAbstractOrFinal` (Doctrine entity compatibility checked before it covers `src/Entity`) |
+| Classes | `Classes.RequireConstructorPropertyPromotion`, `Classes.ForbiddenPublicProperty`, `Classes.RequireAbstractOrFinal` (covers `src/Entity` only with Doctrine native lazy objects enabled (D38), or with `src/Entity` excluded (D25); undecided, open item 3) |
 | Functions | `Functions.StaticClosure`, `Functions.UnusedParameter`, `Functions.DisallowEmptyFunction` |
 | Variables | `Variables.UnusedVariable`, `Variables.UselessVariable` |
 | Exceptions | `Exceptions.DeadCatch`, `Exceptions.ReferenceThrowableOnly`, `Exceptions.RequireNonCapturingCatch` |
@@ -90,13 +90,13 @@ Ownership rules between PHP-CS-Fixer and PHP_CodeSniffer:
 2. Nothing writes files in CI. PHP-CS-Fixer runs in dry-run mode in CI, PHP_CodeSniffer reports, and `phpcbf` runs only from the local `fix` target (D26).
 3. Conflict test: the Makefile `check` target runs PHP-CS-Fixer, then PHP_CodeSniffer, over the whole codebase, and both must report nothing. A sniff that makes `check` unsatisfiable is not added.
 
-`DisallowMixedTypeHint` complements D19: framework `mixed` is handled with inline assertions, and project code may not declare `mixed` itself.
+`DisallowMixedTypeHint` complements D19 and D38: framework `mixed` that the extensions do not type (raw DBAL rows, D38) is handled with inline assertions, and project code may not declare `mixed` itself.
 
 Starting permissive was considered and set aside (D3, superseded). The principle in D2 is that stricter tooling teaches more.
 
 Generated files: `config/reference.php` is excluded from PHPStan, PHP_CodeSniffer and Rector, and from PHP-CS-Fixer by its recipe. `config/bundles.php` is excluded from PHP_CodeSniffer and PHP-CS-Fixer. These are exclusions of framework-managed files, not a baseline (D30).
 
-Known cost of D19: without the Symfony and Doctrine PHPStan extensions, framework APIs that return `mixed` (container parameters, query results) are flagged at max level and need inline type assertions.
+Known cost, after D38: container parameters and Doctrine query results now come from the extensions. Raw DBAL result rows, such as the KNN repository's, still need inline type assertions, because phpstan-doctrine does not type them (D38).
 
 ### Testing
 
@@ -148,6 +148,7 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 | `test` | No | PHPUnit, unit suite. Integration suite added with D24 | CI, local |
 
 - Any finding from a `check` tool fails the target. Make stops at the first failing tool, so later tools report only after earlier ones pass.
+- phpstan-symfony needs the compiled dev container. `check` builds it before PHPStan runs, locally and in CI (D38). The Makefile change is not made yet.
 - No targets exist for `/app` until it is scaffolded (D26).
 - Where the targets run (D28): one Makefile variable, `EXEC`, holds the command prefix. Locally it defaults to `docker compose --project-directory backend exec -T php`, run from the repository root. In CI it is empty, so the tools run directly on the runner. Target bodies are the same in both places.
 - Tool paths in the target bodies are relative to the backend root. That root is the container's working directory locally, and the job's working directory in CI (D29).
@@ -156,7 +157,7 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 
 ## 8. Dependencies
 
-- `4-deployment-shape`: GitHub Actions is the CI platform. Scheduled jobs run on Symfony Scheduler instead. Postgres 17 Standard Edition and its h3-pg version fix the test image (D17 there). It defines the production compose services; the dev-only `database` service is defined here (D28).
+- `4-deployment-shape`: GitHub Actions is the CI platform. Scheduled jobs run on Symfony Scheduler instead. Postgres 17 Standard Edition fixes the major version of the test image (D17 there). Its PostGIS and h3-pg versions are pinned provisionally (D37) and re-pinned from the instance. It defines the production compose services; the dev-only `database` service is defined here (D28).
 - `2-nearby-search`: the repository seam is what makes service-layer unit testing possible.
 - `3-visitor-identity`, `1-1-h3-grid-freshness`: test approach for database-backed features.
 - `7-flutter-client`: client test and lint tooling.
@@ -166,7 +167,7 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 ## 9. Explicitly deferred
 
 - **Lint and static-analysis ratchets.** None. The analysers start at their strictest level (D17), so there is no later tightening step.
-- **PHPStan extensions and `bleedingEdge`.** Left out for now (D19). Not a ratchet: level stays at max; this is about framework type knowledge. Revisit point: the first merged Doctrine entity or repository class under `backend/src/` (D27). That merge is a latest point for the review, not an earliest one.
+- **PHPStan extensions beyond the framework two, and `bleedingEdge`.** phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` are left out (D19, D38). Not a ratchet: level stays at max. Their trigger is open item 2.
 - **Pre-commit hook.** Not built. The Makefile is the entry point (D23); nothing yet needs a hook on top.
 - **CI database job and publishing the PostGIS + h3-pg image to GHCR.** Added with the first integration test, not before (D24). The Dockerfile itself arrives earlier, with the first Doctrine entity, for the local `database` service (D28).
 - **Dev-only `database` service.** Added with the first Doctrine entity, not before (D28).
@@ -179,10 +180,12 @@ Makefile targets are the contract between local runs and CI (D23, D26). Three ta
 - Permissive static-analysis start, with a later ratchet: replaced by maximum level from day one (D3, D12, D17).
 - Lint packages for the client deferred until Riverpod is adopted: superseded, since Riverpod is adopted (D7).
 - A production build in the Dockerfile from the scaffold onward (D28): deferred to the first deploy (D33).
+- No PHPStan extensions (D19): replaced, for the two framework extensions, by D38.
 
 ---
 
 ## 11. Open items
 
-1. **h3-pg version for the test image.** Read from the provisioned managed instance (`pg_available_extensions`) and pinned in the Dockerfile (`4-deployment-shape` open item 1).
-2. **Trigger for phpstan-phpunit and the strictness extensions.** D27 sets the review point for phpstan-doctrine and phpstan-symfony. phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` are not given a trigger of their own. Whether they need one is open.
+1. **Provisional test-image pins.** PostGIS (base image `postgis/postgis:17-3.6`) and h3-pg (`4.5.0`) are pinned provisionally (D37). Once the managed instance is provisioned, read the installed `postgis`, `h3` and `h3_postgis` versions from `pg_available_extensions` and re-pin the Dockerfile to match (`4-deployment-shape` open item 1).
+2. **Trigger for phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge`.** D38 leaves them out and sets no trigger. Whether they need one is open.
+3. **Final entities.** `Classes.RequireAbstractOrFinal` on `src/Entity` holds only with Doctrine native lazy objects enabled (D38). The other route is excluding `src/Entity` from the sniff (D25). Neither is decided.
