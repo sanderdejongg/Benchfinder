@@ -421,6 +421,93 @@ D19's decision is unchanged and remains Provisional. This decision adds only its
 
 ---
 
+## D29 — CI reaches the backend root through the job's working directory; tool paths are relative to the backend root
+
+**Resolves:** how D28's "EXEC empty in CI, identical target bodies" works when the Makefile sits at the repository root and the tools sit in `/backend`.
+
+**Decision:**
+
+- Every tool path in the Makefile target bodies is relative to the backend root.
+- Locally, `EXEC` defaults to `docker compose --project-directory backend exec -T php`, run from the repository root. The container's working directory is the backend root, so the relative paths resolve. `--project-directory backend` loads both `compose.yaml` and the dev `compose.override.yaml`.
+- In CI, the job sets `defaults.run.working-directory: backend` and calls `make -f ../Makefile EXEC= <target>`. The runner's working directory is then the backend root, `EXEC` is empty, and the target bodies are unchanged.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| `EXEC="cd backend &&"` in CI | `EXEC` is no longer empty, which breaks D28, and a path concern ends up inside the command prefix. |
+| A `BACKEND_DIR` path variable in the target bodies | It would hold different values locally and in CI, so the bodies would no longer be identical in effect (D8). |
+| `EXEC` default using `-f backend/compose.yaml` | An explicit `-f` stops compose from loading `compose.override.yaml`, where the template keeps the dev build target and Xdebug. Local runs would hit the wrong image. |
+
+**Rationale:** Chosen during implementation (PRs #14 and #15) and not separately discussed with the user. The only thing that differs between the two environments is the working directory. Putting that difference in the CI job, not the Makefile, keeps D28's rule literally true: `EXEC` is empty in CI, and the bodies are the same text.
+
+**Trade-off accepted:** the CI invocation (`-f ../Makefile`, `EXEC=` on the command line) differs from the local one (`make check` from the root). D8's "same commands" holds at the level of the target bodies, not the `make` command line.
+
+**Assumption, falsifiable:** no target needs a path outside `/backend`. The first one that does, for example a client target once `/app` exists (D26), reopens this decision.
+
+**Status:** Settled.
+
+---
+
+## D30 — Symfony-managed generated files are excluded from the tools that would rewrite or flag them
+
+**Decision:**
+
+- `config/reference.php` is excluded from PHPStan, PHP_CodeSniffer and Rector. The PHP-CS-Fixer Flex recipe already excludes it.
+- `config/bundles.php` is excluded from PHP_CodeSniffer and PHP-CS-Fixer. PHPStan and Rector still cover it.
+- These exclusions are not a baseline. No finding in hand-written code is suppressed.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Lint `config/reference.php` like any other file | Symfony regenerates it on `cache:clear`, so any fix is overwritten and `check` fails again. The churn teaches nothing, so the D2 argument for strictness does not apply. |
+| Commit a fixed version and stop regeneration | It fights the framework over a file it owns. |
+
+**Rationale:** User decision to keep the `reference.php` exclusion (2026-10-15). The `bundles.php` exclusions follow the PHP-CS-Fixer recipe, because Flex rewrites that file on every bundle install.
+
+**Trade-off accepted:** `config/bundles.php` is covered unevenly. Rector re-adds `declare(strict_types=1)` after each Flex bundle install, so a `make fix` follows every bundle install.
+
+**Revisit trigger:** a third generated file needing an exclusion. At that point a single shared exclusion list beats per-tool entries.
+
+**Status:** Settled.
+
+---
+
+## D31 — Slevomat sniffs resolve through `installed_paths`; the Composer installer plugin is blocked
+
+**Decision:** `phpcs.xml.dist` sets `installed_paths` to `vendor/slevomat/coding-standard`. The `dealerdirect/phpcodesniffer-composer-installer` package, which slevomat requires, stays installed but is set to `false` in Composer's `allow-plugins`, so its plugin code never runs.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Allow the installer plugin | One more Composer plugin executing code at install time, for a single path that one line of config already provides. |
+
+**Rationale:** The fewer-moving-parts option (project rule: nothing that isn't needed). Verified during implementation: with the plugin blocked and no `installed_paths`, phpcs reports the Slevomat sniffs as missing. With `installed_paths` set, all D25 sniffs resolve.
+
+**Status:** Settled.
+
+---
+
+## D32 — D20's "PHP migration set" includes its risky variant
+
+**Clarifies:** D20.
+
+**Decision:** PHP-CS-Fixer runs `@PHP8x5Migration` and `@PHP8x5Migration:risky`. (`@PHP85Migration` is a deprecated alias of the first.)
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| `@PHP8x5Migration` only | Inconsistent with D20, which already enables `@Symfony:risky` and allows risky rules. |
+
+**Rationale:** Applies D2 (stricter over minimal). This was the orchestrator's recommendation during implementation, and the user did not overrule it.
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
 - h3-pg version for the test image (design Open item 1; D24).
