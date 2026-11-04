@@ -211,7 +211,7 @@ Decisions leading to `../designs/5-realtime-push.md`.
 
 | Option | Why rejected |
 |---|---|
-| Keep the template's hub configuration from the scaffold onward | Nothing publishes or subscribes yet. The template's settings were unverified: anonymous subscribers, placeholder JWT keys, and a `protocol_version_compatibility` line whose stated purpose was doubtful. They would have been carried into the publisher work as if decided. |
+| Keep the template's hub configuration from the scaffold onward | Nothing publishes or subscribes yet. The template's hub block did not start as shipped with this image: it needed `protocol_version_compatibility 8` for its `publisher_jwt` and `subscriber_jwt` directives, and a single hub name. Whether to stay in compatibility mode or move to the newer key configuration was still open, alongside the placeholder JWT keys. Keeping the block would have carried those choices into the publisher work as if they were decided. |
 
 **Rationale:** The project rule is no speculative abstractions (`6-architecture-setup` D33, D35). The hub's settings belong with Open item 4, where key handling is designed.
 

@@ -242,7 +242,7 @@ The visitor purge is scheduled from day one while ingestion stays manual because
 
 | Option | Why rejected |
 |---|---|
-| An access log with a filter deleting `request>headers>X-Visitor-Id` | A deny-list of one header: a typo or a renamed header leaks the visitor ID, and the omission shows in no test. The URI, which carries lat/lon, is still logged. It was implemented first in the scaffold PR, and then replaced. |
+| An access log with a filter deleting `request>headers>X-Visitor-Id` | A deny-list of one header: a typo or a renamed header leaks the visitor ID, and only a manual check catches it. The URI, which carries lat/lon, is still logged. It was implemented first in the scaffold PR, and then replaced. |
 
 **Rationale:** No design needs request-level access logs. With no access log, nothing has to be filtered, and coordinates stay out of logs as well. Both options were already allowed by `3-visitor-identity` D13 and Open item 5. Checked against the running dev container: a request carrying `X-Visitor-Id` and coordinates left neither in the container output.
 
