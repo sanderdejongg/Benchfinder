@@ -2,7 +2,7 @@
 
 Decisions leading to `../designs/6-architecture-setup.md`.
 
-**Updated:** 2026-10-15
+**Updated:** 2026-11-04
 
 ---
 
@@ -222,7 +222,7 @@ This is the same "over-engineering encouraged within reason" principle that appl
 
 **Trade-off accepted:** without the Symfony and Doctrine extensions, PHPStan does not know framework return types. Calls such as container parameter lookups and query results resolve to `mixed`, which level max flags. These are handled with inline type assertions.
 
-**Status:** Provisional ("for now"). Revisit point set by D27 (2026-10-15).
+**Status:** ⚠ Partly superseded by D38 (2026-11-04): the extensions only. Level max, no baseline and no `bleedingEdge` stand. Revisit point set by D27 (2026-10-15).
 
 ---
 
@@ -608,7 +608,50 @@ Also:
 
 ---
 
+## D37 — The dev and test database image pins PostGIS and h3-pg provisionally
+
+**Decision:** The image will build on `postgis/postgis:17-3.6` (Postgres 17, PostGIS 3.6), with h3-pg `4.5.0`, the latest release (published 2026-06-08; the project lives at github.com/postgis/h3-pg). Both pins are provisional until the managed instance is provisioned. Then the installed `postgis`, `h3` and `h3_postgis` versions will be read from `pg_available_extensions`, and the image will be re-pinned to match. This extends open item 1, which named only h3-pg, to PostGIS.
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Provision the managed instance now to read the versions | It pays for a cluster before the first deploy only to read a version number. The first slice calls no h3 function (`2-nearby-search` D17, D20), so an h3-pg mismatch cannot affect its tests. |
+
+**Trade-off accepted:** a version mismatch is found at provisioning, not before.
+
+**Status:** Provisional.
+
+---
+
+## D38 — D27 review outcome: add phpstan-doctrine and phpstan-symfony
+
+**Supersedes:** D19, in part (the extensions only).
+
+**Decision:**
+
+- PHPStan adds phpstan-doctrine and phpstan-symfony.
+- Level stays `max`. No baseline.
+- `bleedingEdge`, phpstan-phpunit, phpstan-strict-rules and phpstan-deprecation-rules stay out. The user's decision at this review covered the two framework extensions only. Whether and when the others come in stays open (design open item 2).
+- The review happens before the first entity is written, so entity and repository code is written under the extensions rather than retrofitted. This meets D27's latest point.
+- phpstan-symfony reads the compiled dev container XML (`containerXmlPath`), so the container is built before PHPStan runs, locally and in CI.
+
+**D27 check** (does phpstan-doctrine type raw DBAL rows?): No. Per the phpstan-doctrine README, it infers DQL and QueryBuilder result types (with an `objectManagerLoader`) and entity repository methods. Raw DBAL fetches such as `fetchAssociative()` keep their DBAL return types (`array<string, mixed>|false`). The KNN repository (`2-nearby-search` D16) therefore still maps its rows with inline assertions.
+
+**Also from the README:** phpstan-doctrine reports `final` entity classes unless native lazy objects are enabled. For `src/Entity`, `Classes.RequireAbstractOrFinal` (D25) therefore holds only with native lazy objects enabled; otherwise D25's fallback excludes entities from the sniff. Neither is decided (design open item 3).
+
+**Alternatives considered:**
+
+| Option | Why rejected |
+|---|---|
+| Keep D19 unchanged (no extensions) and handle framework `mixed` with inline assertions | Not taken. The user chose to add both extensions. |
+
+**Status:** Settled.
+
+---
+
 ## Unresolved at time of writing
 
-- h3-pg version for the test image (design Open item 1; D24).
-- Trigger for phpstan-phpunit, and whether the strictness extensions need a trigger of their own (design Open item 2; D27).
+- PostGIS and h3-pg pins for the test image are provisional, to be re-pinned from the managed instance (design Open item 1; D24, D37).
+- Trigger for phpstan-phpunit, phpstan-strict-rules, phpstan-deprecation-rules and `bleedingEdge` (design Open item 2; D27, D38).
+- Final entities: `Classes.RequireAbstractOrFinal` on `src/Entity` needs Doctrine native lazy objects (D38) or an exclusion of `src/Entity` from the sniff (D25). Neither is decided (design Open item 3).

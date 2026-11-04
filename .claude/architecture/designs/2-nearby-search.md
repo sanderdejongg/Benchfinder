@@ -1,6 +1,6 @@
 # `GET /benches/nearby` — Final Design
 
-**Issue:** [BEN-2](https://benchfinder.youtrack.cloud/issue/BEN-2)  **Status:** settled, not implemented  **Updated:** 2026-10-08
+**Issue:** [BEN-2](https://benchfinder.youtrack.cloud/issue/BEN-2)  **Status:** settled, not implemented  **Updated:** 2026-11-04
 
 ---
 
@@ -16,7 +16,7 @@ The single read endpoint the Flutter client depends on. Given a coordinate, retu
 - **Bounded work.** A KNN walk with no distance cutoff can degrade toward a scan when the query point is in an empty region. The cutoff is 5000 m (D2, D3).
 - **Request budget.** Each database statement is capped at 3 s by `statement_timeout`; the request has no overall deadline. No Overpass call is on the request path; a RabbitMQ publish is (`1-4-dispatch-mechanism`).
 - **Known tension, recorded not resolved.** The 5000 m cutoff reaches further than the roughly 2 km warm footprint that ingestion fills (`1-2-cell-ingestion` D9). Benches in cold cells beyond that footprint stay invisible until someone queries there. This is acceptable at rural density: about 5 benches/km² gives about 70 benches within the 19-cell footprint (about 14 km²). The ~2 km figure is measured from the request cell's centre; from an arbitrary point inside that cell the guaranteed covered radius is about 1.4 km (`1-2-cell-ingestion` D9).
-- **Build order.** This endpoint is built first, against seeded fixtures, with no freshness hook (D17).
+- **Build order.** This endpoint is built first, against seeded fixtures (D19), with no freshness hook (D17). The first slice's scope is under First slice below (D22).
 
 ---
 
@@ -29,6 +29,17 @@ The single read endpoint the Flutter client depends on. Given a coordinate, retu
 3. Run the KNN query (below), each statement capped at 3 s, with `LIMIT` 20 and the 5000 m cutoff.
 4. Check freshness for the request point's res-8 cell (`1-1-h3-grid-freshness`). If the cell is cold or stale, add it to `pending_cells` (provisional, see open item 3) and dispatch one ingestion job (`1-2-cell-ingestion` D7–D8, `1-4-dispatch-mechanism` D2).
 5. Respond `200`. Stale or cold cells are still answered from whatever PostGIS holds for them. When `pending_cells` is non-empty, the response also carries the Mercure discovery `Link` header (`5-realtime-push`). The Link header scope is provisional (open item 2).
+
+### First slice
+
+The first build implements request flow steps 1, 3 and 5 (D17, D22):
+
+- `pending_cells` is always `[]`. The `Link` header is never sent.
+- There is no visitor upsert. The `X-Visitor-Id` header is ignored until the upsert ships as its own follow-up.
+- Dev data comes from Doctrine fixtures (D19). Integration tests seed their own rows.
+- The first migration creates only the `benches` columns the slice uses (D20). The full `benches` table is in `1-ingestion-pipeline`.
+- `id` is a UUIDv7 generated in PHP (D18).
+- A KNN statement that hits the 3 s timeout returns `503 search_unavailable` (D21).
 
 ### Layering
 
@@ -69,13 +80,15 @@ Both spatial constants are defaults chosen for tuning against real usage, not de
 ### Query shape
 
 ```sql
-SELECT id, lat, lon, has_backrest, is_covered, is_accessible,
+SELECT id, ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lon, has_backrest, is_covered, is_accessible,
        ST_Distance(geog, :point) AS distance_meters
 FROM benches
 WHERE ST_DWithin(geog, :point, :cutoff)
 ORDER BY geog <-> :point
 LIMIT :n
 ```
+
+`lat` and `lon` are derived from `geog`; there are no separate columns (D20).
 
 `<->` walks the GIST index outward from the query point, so the result is the N nearest rows within the cutoff, in one round trip. Density adaptation falls out of the query itself: no ladder, no retry loop, no client-side radius negotiation.
 
@@ -93,6 +106,13 @@ GET /benches/nearby?lat=<float>&lon=<float>
 ```json
 { "error": { "code": "invalid_coordinates", "message": "lat must be between -90 and 90" } }
 ```
+
+### Error codes
+
+| Code | Status | Condition | Decision |
+|---|---|---|---|
+| `invalid_coordinates` | `400` | `lat` or `lon` missing, non-numeric or out of range | D6, D11 |
+| `search_unavailable` | `503` | KNN statement cancelled by the 3 s `statement_timeout` (SQLSTATE `57014`) | D21, D11 |
 
 ### Response (`200`)
 
@@ -115,6 +135,7 @@ GET /benches/nearby?lat=<float>&lon=<float>
 
 - `pending_cells` is `[]` when every cell in play is fresh. Otherwise it lists the cold or stale res-8 cells (D14, D15).
 - No-results is `200` with `"benches": []`, never `404`.
+- `id` is a UUIDv7 string, generated in PHP (D18).
 - `distance_meters` is computed per row by `ST_Distance`.
 - Raw OSM tags are not exposed.
 - No `count` field.
@@ -147,6 +168,7 @@ The hub URL is the Mercure discovery link. Topic names are defined in `5-realtim
 - **Deterministic tiebreak** (D5). Add `, id` as a secondary sort key: `ORDER BY geog <-> :point, id`. Not MVP-blocking.
 - **Pagination and `count`** (D12). Added when pagination is actually built.
 - **Cutoff and `LIMIT` tuning** (D13). Named post-launch task, pending real usage data.
+- **Visitor upsert and freshness check** (D17, D22). Request flow steps 2 and 4 are not in the first slice. The upsert ships as its own follow-up, with the failure path in `3-visitor-identity` open item 1. The freshness hook arrives with ingestion.
 
 ---
 
@@ -161,6 +183,7 @@ The hub URL is the Mercure discovery link. Topic names are defined in `5-realtim
 
 ## Open items
 
-1. **Failure responses.** Each statement is capped at 3 s (D8), but the status code and error code are not chosen for: a KNN statement that times out or fails; a dispatch failure (RabbitMQ unreachable, so no ingestion job is queued); and a visitor-upsert failure, which sits against the never-reject rule for the visitor ID (`3-visitor-identity` D6, open item 1).
+1. **Failure responses.** The KNN timeout is settled (D21). Not chosen: the status and error code for a KNN failure other than the timeout, such as connection loss; a dispatch failure (RabbitMQ unreachable, so no ingestion job is queued); and a visitor-upsert failure, which sits against the never-reject rule for the visitor ID (`3-visitor-identity` D6, open item 1). The upsert is not in the first slice (D22).
 2. **`Link` header scope.** Whether the header is sent on every `200` or only when `pending_cells` is non-empty.
 3. **Scope of the freshness check.** Whether `pending_cells` lists only the request point's res-8 cell, or every cell the KNN results fall in. The plural field does not settle it. Shared with `1-2-cell-ingestion`. Under the wider reading, a client re-call can dispatch jobs for cells outside the job's disk, so fan-out is bounded only by the KNN result set. Resolve together with the re-call policy in `5-realtime-push` and `7-flutter-client`.
+4. **Unknown amenity booleans.** OSM often omits `backrest`, `covered` and wheelchair tags. Whether `has_backrest`, `is_covered` and `is_accessible` are nullable (null = unknown, in the column and the response) or default to `false` is not decided. It fixes the migration's column nullability (D20) and the response contract, so it must be decided before the first migration is written.
