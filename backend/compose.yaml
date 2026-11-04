@@ -10,6 +10,10 @@ services:
       DEFAULT_URI: https://${SERVER_NAME:-localhost}:${HTTPS_PORT:-8443}
       # Off by default. Enable per run: XDEBUG_MODE=debug docker compose up -d
       XDEBUG_MODE: ${XDEBUG_MODE:-off}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=17&charset=utf8
+    depends_on:
+      database:
+        condition: service_healthy
     volumes:
       - ./:/app
       - ./frankenphp/Caddyfile:/etc/frankenphp/Caddyfile:ro
@@ -38,6 +42,30 @@ services:
       - host.docker.internal:host-gateway
     tty: true
 
+  # Dev-only PostGIS + h3-pg (6-architecture-setup D28, D39).
+  database:
+    build:
+      context: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-!ChangeMe!}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-app}", "-U", "${POSTGRES_USER:-app}"]
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    # Dev default avoids 5432, which a local Postgres often holds.
+    ports:
+      - name: postgres
+        target: 5432
+        published: ${POSTGRES_PORT:-5433}
+        protocol: tcp
+
 volumes:
   caddy_data:
   caddy_config:
+  database_data:

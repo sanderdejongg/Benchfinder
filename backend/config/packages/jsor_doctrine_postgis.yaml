@@ -1,0 +1,8 @@
+# PostGIS schema support for jsor/doctrine-postgis (2-nearby-search D16):
+# spatial indexes in the schema tool, and the DBAL driver middleware.
+services:
+    Jsor\Doctrine\PostGIS\Event\ORMSchemaEventListener:
+        tags: [{ name: doctrine.event_listener, event: postGenerateSchemaTable, connection: default }]
+
+    Jsor\Doctrine\PostGIS\Driver\Middleware:
+        tags: [doctrine.middleware]
