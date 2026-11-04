@@ -36,7 +36,4 @@
             <function>trigger_deprecation</function>
         </deprecationTrigger>
     </source>
-
-    <extensions>
-    </extensions>
 </phpunit>
